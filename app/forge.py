@@ -74,8 +74,8 @@ def get_status() -> dict[str, Any]:
         active, sources = bool(_state["active"]), dict(_state["sources"])
     with db.connect() as conn:
         run = db.latest_run(conn)
-    if not active and run:
-        sources = run["summary"].get("sources", {})
+    if not active:  # between runs the last finished run is the source of truth (and a fresh database has none)
+        sources = run["summary"].get("sources", {}) if run else {}
     return {"active": active, "run": run, "sources": sources}
 
 
