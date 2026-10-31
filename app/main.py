@@ -2,16 +2,21 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import FastAPI, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from app import db, forge
 from app.adapter import cv_builder, cv_tailor, extract_text, llm
+from app.reader import reader
 from app.reader.add_job import AddJobError, add_job
+from app.scout.attributions import ATTRIBUTIONS
 from app.scout.boards import SLUG_RE, add_board
 from app.config import STATIC_DIR
 from app.security import local_security
@@ -29,6 +34,18 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 # API docs are disabled: no extra routes, and no CDN assets loaded by the browser.
 app = FastAPI(title="Forge", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
 app.middleware("http")(local_security)
+
+
+class NoStoreStaticFiles(StaticFiles):
+    """Static files that the browser never caches (so a new build is always picked up)."""
+
+    async def get_response(self, path: str, scope: Any) -> Response:
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+
+app.mount("/static", NoStoreStaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/api/health")
@@ -296,3 +313,85 @@ def cv_docx(key: JobKey) -> FileResponse | JSONResponse:
 def cv_pdf(key: JobKey) -> FileResponse | JSONResponse:
     """Download a tailored CV as .pdf."""
     return _download(key, "pdf")
+
+
+# --- UI support -------------------------------------------------------------------------------
+
+_AGENT_ROLES = {
+    "forge": "Orchestrator: runs the pipeline on your click",
+    "scout": "Finds, de-duplicates, and scores jobs",
+    "job-reader": "Reads a job post and extracts its details",
+    "cv-adapter": "Builds and tailors your CV (the only agent that uses Claude)",
+}
+LIVE_WINDOW_SECONDS = 15 * 60
+
+
+def _agent_status(busy: bool, last_at: str | None) -> str:
+    """WORKING while busy, LIVE if it acted in the last 15 minutes, else IDLE."""
+    if busy:
+        return "WORKING"
+    if last_at:
+        age = (datetime.now(UTC) - datetime.fromisoformat(last_at)).total_seconds()
+        if age <= LIVE_WINDOW_SECONDS:
+            return "LIVE"
+    return "IDLE"
+
+
+@app.get("/api/agents")
+def agents() -> list[dict[str, Any]]:
+    """The four agents with their status, task counts, success rate, and last action."""
+    find_running = forge.is_active()
+    busy = {
+        "forge": find_running, "scout": find_running, "job-reader": reader.is_busy(),
+        "cv-adapter": cv_builder.is_building() or cv_tailor.is_busy(),
+    }
+    with db.connect() as conn:
+        stats = db.agent_stats(conn)
+    return [
+        {
+            "name": name, "role": _AGENT_ROLES[name], "status": _agent_status(busy[name], stat["last_at"]),
+            "tasks": stat["tasks"], "success_rate": round(100 * stat["completed"] / stat["tasks"]) if stat["tasks"] else None,
+            "last_action": stat["last_action"], "last_model": stat["last_model"], "last_at": stat["last_at"],
+        }
+        for name, stat in stats.items()
+    ]
+
+
+@app.get("/api/activity")
+def activity(limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict[str, Any]]:
+    """The newest activity entries first."""
+    with db.connect() as conn:
+        return db.list_activity(conn, limit)
+
+
+@app.get("/api/attributions")
+def attributions() -> dict[str, dict[str, str]]:
+    """Source credits the page footer must show."""
+    return ATTRIBUTIONS
+
+
+class JobStatusRequest(BaseModel):
+    """Body of POST /api/job/status."""
+
+    key: str = Field(min_length=1, max_length=64)
+    user_status: Literal["new", "interested", "applied", "interview", "rejected"]
+
+
+@app.post("/api/job/status", response_model=None)
+def set_job_status(body: JobStatusRequest) -> dict[str, str] | JSONResponse:
+    """Save your own status for a job."""
+    with db.connect() as conn:
+        found = db.set_user_status(conn, body.key, body.user_status)
+    if not found:
+        return JSONResponse({"detail": "Unknown job"}, status_code=404)
+    return {"key": body.key, "user_status": body.user_status}
+
+
+@app.get("/api/jd", response_model=None)
+def job_detail(key: Annotated[str, Query(min_length=1, max_length=64)]) -> dict[str, Any] | JSONResponse:
+    """What the job description drawer shows."""
+    with db.connect() as conn:
+        detail = db.get_job_detail(conn, key)
+    if detail is None:
+        return JSONResponse({"detail": "Unknown job"}, status_code=404)
+    return detail

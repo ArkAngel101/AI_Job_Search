@@ -205,3 +205,9 @@ def _record_fetch_times(names: list[str]) -> None:
         last.update({name: db.now_iso() for name in limited})
         db.set_setting(conn, "source_last_fetch", last)
 
+
+
+def is_active() -> bool:
+    """True while a Find run is in progress."""
+    with _lock:
+        return bool(_state["active"])

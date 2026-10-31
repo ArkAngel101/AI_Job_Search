@@ -300,7 +300,7 @@ def test_jobs_endpoint_shape_ranking_and_filters(web: Web, client: TestClient) -
     assert [r["rank"] for r in rows] == [1, 2, 3, 4]
     assert [r["score"] for r in rows] == sorted((r["score"] for r in rows), reverse=True)
     assert set(rows[0]) == {"rank", "score", "title", "company", "location", "url", "source", "new", "times_seen",
-                            "closed", "status", "user_status", "key"}
+                            "closed", "status", "user_status", "key", "needs_sponsorship"}
     assert all(r["new"] and r["status"] == "matched" and r["user_status"] == "new" and r["closed"] is False for r in rows)
 
     assert {r["source"] for r in client.get("/api/jobs", params={"source": "lever"}).json()} == {"lever"}

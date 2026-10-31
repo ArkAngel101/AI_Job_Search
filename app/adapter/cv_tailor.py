@@ -225,3 +225,8 @@ def export_file(key: str, kind: str) -> tuple[Path, str]:
     stem = "_".join(filter(None, (stored["cv"]["name"], summary.get("company", ""), summary.get("title", ""))))
     safe = "".join(ch if ch.isalnum() else "_" for ch in stem)[:100].strip("_") or "cv"
     return path, f"{safe}.{kind}"
+
+
+def is_busy() -> bool:
+    """True while a CV is being tailored."""
+    return _promote_lock.locked()

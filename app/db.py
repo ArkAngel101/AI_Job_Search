@@ -355,17 +355,23 @@ def upsert_seen(
 
 
 _SUMMARY_COLUMNS = (
-    "key, title, company, location, url, source, score, times_seen, closed, status, user_status, first_run"
+    "key, title, company, location, url, source, score, times_seen, closed, status, user_status, first_run,"
+    " COALESCE(json_extract(score_breakdown_json, '$.flags.needs_sponsorship_or_citizenship'), 0) AS needs_sponsorship"
 )
+
+
+def safe_url(url: str | None) -> str:
+    """The URL if it is http(s), else "" (so a javascript: or data: link can never reach the UI)."""
+    return url if url and url.lower().startswith(("http://", "https://")) else ""
 
 
 def _summary(row: sqlite3.Row, rank: int | None, latest_run_id: int | None) -> dict[str, Any]:
     return {
         "rank": rank, "score": row["score"], "title": row["title"], "company": row["company"],
-        "location": row["location"], "url": row["url"], "source": row["source"],
+        "location": row["location"], "url": safe_url(row["url"]), "source": row["source"],
         "new": row["first_run"] is not None and row["first_run"] == latest_run_id,
         "times_seen": row["times_seen"], "closed": bool(row["closed"]), "status": row["status"],
-        "user_status": row["user_status"], "key": row["key"],
+        "user_status": row["user_status"], "key": row["key"], "needs_sponsorship": bool(row["needs_sponsorship"]),
     }
 
 
@@ -530,3 +536,64 @@ def set_export_paths(conn: sqlite3.Connection, key: str, docx_path: str | None, 
     """Update where a tailored CV's files live (after they are regenerated)."""
     conn.execute("UPDATE tailored_cvs SET docx_path = ?, pdf_path = ? WHERE job_key = ?", (docx_path, pdf_path, key))
     conn.execute("UPDATE jobs SET cv_path = ? WHERE key = ?", (docx_path, key))
+
+
+# --- UI support: agents, activity, owner's job status -----------------------------------
+
+def agent_stats(conn: sqlite3.Connection) -> dict[str, dict[str, Any]]:
+    """Per agent: task count, completed count, and the latest action with its model and time."""
+    stats: dict[str, dict[str, Any]] = {}
+    for agent in AGENTS:
+        row = conn.execute(
+            "SELECT COUNT(*) AS tasks, COALESCE(SUM(status = 'completed'), 0) AS completed FROM activity_log WHERE agent_name = ?",
+            (agent,),
+        ).fetchone()
+        last = conn.execute(
+            "SELECT task_description, model_used, status, created_at FROM activity_log WHERE agent_name = ?"
+            " ORDER BY created_at DESC LIMIT 1", (agent,),
+        ).fetchone()
+        stats[agent] = {
+            "tasks": int(row["tasks"]), "completed": int(row["completed"]),
+            "last_action": last["task_description"] if last else None,
+            "last_model": last["model_used"] if last else None,
+            "last_status": last["status"] if last else None,
+            "last_at": last["created_at"] if last else None,
+        }
+    return stats
+
+
+def list_activity(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, Any]]:
+    """The newest activity entries first."""
+    rows = conn.execute(
+        "SELECT id, agent_name, task_description, status, model_used, created_at FROM activity_log"
+        " ORDER BY created_at DESC LIMIT ?", (limit,),
+    ).fetchall()
+    return [
+        {"id": r["id"], "agent": r["agent_name"], "task": r["task_description"], "status": r["status"],
+         "model": r["model_used"], "at": r["created_at"]}
+        for r in rows
+    ]
+
+
+def set_user_status(conn: sqlite3.Connection, key: str, user_status: str) -> bool:
+    """Save the owner's own status for a job (new, interested, applied, interview, rejected)."""
+    if user_status not in USER_STATUSES:
+        raise ValueError(f"Unknown status: {user_status!r}")
+    return conn.execute("UPDATE jobs SET user_status = ? WHERE key = ?", (user_status, key)).rowcount > 0
+
+
+def get_job_detail(conn: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """What the JD drawer shows: the listing, the extracted description (if read), and the score breakdown."""
+    row = conn.execute(
+        "SELECT key, title, company, location, url, source, description, jd_json, score_breakdown_json, score, status FROM jobs WHERE key = ?",
+        (key,),
+    ).fetchone()
+    if row is None:
+        return None
+    return {
+        "key": row["key"], "title": row["title"], "company": row["company"], "location": row["location"],
+        "url": safe_url(row["url"]), "source": row["source"], "score": row["score"], "status": row["status"],
+        "read": row["jd_json"] is not None, "jd": json.loads(row["jd_json"]) if row["jd_json"] else None,
+        "description": row["description"] or "",
+        "score_breakdown": json.loads(row["score_breakdown_json"]) if row["score_breakdown_json"] else None,
+    }

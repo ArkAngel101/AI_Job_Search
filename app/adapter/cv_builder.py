@@ -339,3 +339,9 @@ def wait_for_build(timeout: float = 10.0) -> None:
             if not _state["building"]:
                 return
         time.sleep(0.01)
+
+
+def is_building() -> bool:
+    """True while the base CV is being built."""
+    with _lock:
+        return bool(_state["building"])

@@ -8,6 +8,16 @@ ALLOWED_HOSTS = {"127.0.0.1:8000", "localhost:8000"}
 ALLOWED_ORIGINS = {f"http://{host}" for host in ALLOWED_HOSTS}
 CUSTOM_HEADER = "x-forge-request"
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+# Scripts, styles, and requests may only come from this app itself; nothing may frame it.
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; "
+        "object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+    ),
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "DENY",
+}
 
 
 async def local_security(
@@ -22,4 +32,7 @@ async def local_security(
             return JSONResponse({"detail": "Bad origin"}, status_code=403)
         if CUSTOM_HEADER not in request.headers:
             return JSONResponse({"detail": "Missing X-Forge-Request header"}, status_code=403)
-    return await call_next(request)
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response

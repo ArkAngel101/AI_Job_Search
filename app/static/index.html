@@ -4,17 +4,31 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Forge</title>
-  <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center;
-           background: #080c17; color: #f3f5fb; font-family: system-ui, sans-serif; }
-    h1 { color: #eac266; letter-spacing: 0.2em; margin: 0 0 0.5rem; }
-    p { color: #b4b7c1; margin: 0; text-align: center; }
-  </style>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <main>
-    <h1>FORGE</h1>
-    <p>Skeleton is running.</p>
-  </main>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">FORGE</div>
+      <nav id="nav" aria-label="Pages"></nav>
+      <div class="sidebar-foot">Local only<br>127.0.0.1:8000</div>
+    </aside>
+    <div class="main-col">
+      <header class="topbar">
+        <h1 id="page-title">Overview</h1>
+        <div id="run-pill" class="run-pill" role="status">…</div>
+      </header>
+      <main id="view" tabindex="-1"></main>
+      <footer id="footer" class="footer"></footer>
+    </div>
+  </div>
+  <div id="overlay-root"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <script src="/static/core.js"></script>
+  <script src="/static/overview.js"></script>
+  <script src="/static/jobs.js"></script>
+  <script src="/static/cv.js"></script>
+  <script src="/static/settings.js"></script>
+  <script src="/static/app.js"></script>
 </body>
 </html>

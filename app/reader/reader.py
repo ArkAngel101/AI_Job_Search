@@ -6,6 +6,7 @@ back to the listing's own text, marked `partial`.
 """
 import json
 import sqlite3
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +22,15 @@ from app.scout.scoring import score_listing
 THIN_LISTING_CHARS = 800  # below this a listing is treated as a snippet and the page is fetched
 
 fetch_page = safe_fetch.fetch_public_page  # module-level so tests can replace it
+
+_busy = 0
+_busy_lock = threading.Lock()
+
+
+def is_busy() -> bool:
+    """True while a job is being read (the UI shows the agent as working)."""
+    with _busy_lock:
+        return _busy > 0
 
 
 @dataclass
@@ -71,6 +81,17 @@ def _description_for(row: sqlite3.Row) -> tuple[Prefetched, str | None]:
 
 def read_job(key: str, prefetched: Prefetched | None = None) -> dict[str, Any]:
     """Read one job: extract fields, re-score at final mode, mark it read. A job already read is cached."""
+    global _busy
+    with _busy_lock:
+        _busy += 1
+    try:
+        return _read_job(key, prefetched)
+    finally:
+        with _busy_lock:
+            _busy -= 1
+
+
+def _read_job(key: str, prefetched: Prefetched | None) -> dict[str, Any]:
     row = _load_row(key)
     if row["jd_json"]:
         return json.loads(row["jd_json"])  # never re-fetched
