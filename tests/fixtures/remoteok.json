@@ -1,0 +1,38 @@
+[
+  {
+    "last_updated": 1793404804,
+    "legal": "API Terms of Service: link back to Remote OK..."
+  },
+  {
+    "slug": "remote-nlp-engineer-1137607",
+    "id": "1137607",
+    "epoch": 1793376015,
+    "date": "2026-10-30T16:00:15+00:00",
+    "company": "NLP Co",
+    "company_logo": "",
+    "position": "NLP Engineer",
+    "tags": [
+      "nlp",
+      "python"
+    ],
+    "description": "<p>Work on <em>NLP</em>.</p>",
+    "location": "Worldwide",
+    "apply_url": "https://remoteOK.com/remote-jobs/remote-nlp-engineer-1137607",
+    "salary_min": 0,
+    "salary_max": 0,
+    "logo": "",
+    "url": "https://remoteOK.com/remote-jobs/remote-nlp-engineer-1137607"
+  },
+  {
+    "slug": "remote-data-1137608",
+    "id": "1137608",
+    "date": "2026-10-30T10:00:00+00:00",
+    "company": "Data Co",
+    "position": "Data Scientist",
+    "location": "US",
+    "description": "<p>Stats.</p>",
+    "salary_min": 100000,
+    "salary_max": 130000,
+    "url": "https://remoteOK.com/remote-jobs/remote-data-1137608"
+  }
+]

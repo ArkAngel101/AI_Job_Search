@@ -1,0 +1,24 @@
+{
+  "apiVersion": "2",
+  "success": true,
+  "jobCount": 1,
+  "hasMore": false,
+  "nextCursor": null,
+  "jobs": [
+    {
+      "id": 8002,
+      "url": "https://jobicy.com/jobs/8002-support",
+      "jobTitle": "Support Agent",
+      "companyName": "Jobi Co",
+      "jobGeo": "Anywhere",
+      "jobType": [
+        "Contract"
+      ],
+      "jobDescription": "<p>Help.</p>",
+      "pubDate": "2026-10-29T09:00:00+00:00",
+      "salaryMin": 20,
+      "salaryMax": 30,
+      "salaryPeriod": "hourly"
+    }
+  ]
+}

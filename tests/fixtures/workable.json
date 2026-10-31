@@ -1,0 +1,36 @@
+{
+  "name": "Acme Labs",
+  "description": "We do ML.",
+  "jobs": [
+    {
+      "title": "Open-Source Machine Learning Engineer",
+      "shortcode": "AAA111",
+      "code": "",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Open Source",
+      "url": "https://apply.workable.com/j/AAA111",
+      "shortlink": "https://apply.workable.com/j/AAA111",
+      "application_url": "https://apply.workable.com/j/AAA111/apply",
+      "published_on": "2026-10-01",
+      "created_at": "2026-10-01",
+      "country": "United States",
+      "city": "Austin",
+      "state": "Texas",
+      "education": "",
+      "experience": "",
+      "function": "Engineering",
+      "industry": "Software",
+      "locations": [
+        {
+          "country": "United States",
+          "countryCode": "US",
+          "city": "Austin",
+          "region": "Texas",
+          "hidden": false
+        }
+      ],
+      "description": "<p>Work on <i>open source</i>.</p>"
+    }
+  ]
+}

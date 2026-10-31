@@ -1,0 +1,16 @@
+{
+  "jobs": [
+    {
+      "id": 1,
+      "title": "X",
+      "absolute_url": "https://x/1",
+      "location": {
+        "name": "US"
+      },
+      "content": ""
+    }
+  ],
+  "meta": {
+    "total": 5
+  }
+}

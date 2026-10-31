@@ -21,6 +21,19 @@ A local web app that finds US AI/ML, data science, and similar jobs from free so
 11. **Validator** does not rely only on `skills.yaml`: it also flags any acronym, CamelCase, or capitalized technical-looking term in tailored text that is not in the base CV text, unless on a small common-words allowlist.
 12. **Sanitization transparency:** the CV page has a "Preview sanitized text" view showing exactly what will be sent to Claude (with `[NAME]`, `[EMAIL]`, `[PHONE]`, `[LINKEDIN]` and so on in place), and lists every detected contact item so the owner can correct a miss. Sanitization covers contact details anywhere in the text, not only the header.
 
+### Phase 2 findings (verified against official docs, or live where noted)
+
+13. **Greenhouse:** `content` is entity-encoded HTML, so it is decoded before stripping. `meta.total` is compared with the job count; a mismatch means "incomplete" and the board is not marked complete.
+14. **Lever:** documented fields do not include `createdAt`; it is read if present. No documented rate limit; 1 second spacing kept per the spec.
+15. **Ashby:** `id` is not on the docs page; falls back to the last segment of `jobUrl`. Jobs with `isListed: false` are skipped.
+16. **Workable:** no official docs for the public feed. Verified with one live request: `https://apply.workable.com/api/v1/widget/accounts/{slug}?details=true` (the `www.workable.com/api/accounts/{slug}` form in Workable's help article redirects to it). Paced 3 seconds apart.
+17. **The Muse:** endpoint is `https://www.themuse.com/api/public/jobs` (500 requests/hour without a key). Fields were verified with one live request. Only the two category names from the docs examples are queried (`Data Science`, `Software Engineering`); the full category list was not readable.
+18. **Adzuna:** `max_days_old` is not on the docs page I could read, so it is not sent; the max-age setting is applied locally from `created`. `sort_by=date` follows the spec. Error notes never contain the request URL because it carries the app key.
+19. **Remotive:** terms allow about 4 requests/day and block more than 2/minute, so Phase 2 makes ONE unfiltered request instead of one per keyword; Scout filters locally. Forge enforces a 6-hour gap between Remotive fetches. Links must point to the Remotive posting.
+20. **Jobicy:** no automated polling more than once per hour (Forge enforces it). One request series with `geo=usa`, following `nextCursor` up to `pages`. Only yearly salaries are kept.
+21. **JSearch:** skipped. The RapidAPI docs page could not be read, and it is optional. Revisit if you want it.
+22. **`boards.yaml`:** the image ships a default copy; on first run it is copied to `/data/boards.yaml`, and that editable copy is the one the app reads (the project root is not mounted).
+
 ---
 
 ## 0. Overview

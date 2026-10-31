@@ -1,0 +1,46 @@
+{
+  "jobs": [
+    {
+      "id": 4001,
+      "internal_job_id": 11,
+      "title": "Machine Learning Engineer, New Grad",
+      "updated_at": "2026-10-20T10:00:00-04:00",
+      "requisition_id": "R1",
+      "location": {
+        "name": "San Francisco, CA"
+      },
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/4001",
+      "language": "en",
+      "metadata": null,
+      "content": "&lt;p&gt;Build &lt;b&gt;ML&lt;/b&gt; systems &amp;amp; pipelines.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Python&lt;/li&gt;&lt;li&gt;PyTorch&lt;/li&gt;&lt;/ul&gt;",
+      "departments": [
+        {
+          "id": 1,
+          "name": "Engineering",
+          "parent_id": null,
+          "child_ids": []
+        }
+      ],
+      "offices": []
+    },
+    {
+      "id": 4002,
+      "internal_job_id": 12,
+      "title": "Account Executive",
+      "updated_at": "2026-10-21T10:00:00-04:00",
+      "requisition_id": "R2",
+      "location": {
+        "name": "Remote - US"
+      },
+      "absolute_url": "https://boards.greenhouse.io/acme/jobs/4002",
+      "language": "en",
+      "metadata": null,
+      "content": "&lt;p&gt;Sell things.&lt;/p&gt;",
+      "departments": [],
+      "offices": []
+    }
+  ],
+  "meta": {
+    "total": 2
+  }
+}

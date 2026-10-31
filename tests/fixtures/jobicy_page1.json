@@ -1,0 +1,34 @@
+{
+  "apiVersion": "2",
+  "success": true,
+  "statusCode": 200,
+  "jobCount": 1,
+  "hasMore": true,
+  "nextCursor": "abc123==",
+  "lastUpdate": "2026-10-30T10:00:00+00:00",
+  "jobs": [
+    {
+      "id": 8001,
+      "url": "https://jobicy.com/jobs/8001-ml-engineer",
+      "jobSlug": "8001-ml-engineer",
+      "jobTitle": "ML Engineer",
+      "companyName": "Jobi Co",
+      "companyLogo": "",
+      "jobIndustry": [
+        "Data Science"
+      ],
+      "jobType": [
+        "Full-Time"
+      ],
+      "jobGeo": "USA",
+      "jobLevel": "Junior",
+      "jobExcerpt": "Build ML.",
+      "jobDescription": "<p>Build <b>ML</b>.</p>",
+      "pubDate": "2026-10-30T09:00:00+00:00",
+      "salaryMin": 100000,
+      "salaryMax": 130000,
+      "salaryCurrency": "USD",
+      "salaryPeriod": "yearly"
+    }
+  ]
+}

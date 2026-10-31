@@ -1,0 +1,40 @@
+{
+  "apiVersion": "1",
+  "jobs": [
+    {
+      "id": "ab-1",
+      "title": "AI Engineer",
+      "location": "San Francisco",
+      "isRemote": true,
+      "workplaceType": "Remote",
+      "isListed": true,
+      "descriptionHtml": "<p>Build LLM apps.</p>",
+      "descriptionPlain": "Build LLM apps.",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/ab-1",
+      "applyUrl": "https://jobs.ashbyhq.com/acme/ab-1/application",
+      "publishedAt": "2026-10-15T12:00:00.000+00:00",
+      "compensation": {
+        "compensationTierSummary": "$150K - $200K",
+        "summaryComponents": [
+          {
+            "compensationType": "Salary",
+            "interval": "1 YEAR",
+            "currencyCode": "USD",
+            "minValue": 150000,
+            "maxValue": 200000
+          }
+        ]
+      }
+    },
+    {
+      "id": "ab-2",
+      "title": "Hidden Role",
+      "location": "NYC",
+      "workplaceType": "OnSite",
+      "isListed": false,
+      "descriptionPlain": "Secret.",
+      "jobUrl": "https://jobs.ashbyhq.com/acme/ab-2",
+      "publishedAt": "2026-10-16T12:00:00.000+00:00"
+    }
+  ]
+}

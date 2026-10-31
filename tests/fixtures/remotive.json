@@ -1,0 +1,30 @@
+{
+  "0-legal-notice": "Remotive API terms...",
+  "job-count": 2,
+  "jobs": [
+    {
+      "id": 7001,
+      "url": "https://remotive.com/remote-jobs/data/ml-engineer-7001",
+      "title": "ML Engineer",
+      "company_name": "Remo Co",
+      "company_logo": "",
+      "category": "Data",
+      "job_type": "full_time",
+      "publication_date": "2026-10-25T09:00:00",
+      "candidate_required_location": "USA Only",
+      "salary": "$120k - $150k",
+      "description": "<p>Build <strong>models</strong>.</p>"
+    },
+    {
+      "id": 7002,
+      "url": "https://remotive.com/remote-jobs/sales/ae-7002",
+      "title": "Sales Rep",
+      "company_name": "Sell Inc",
+      "category": "Sales",
+      "job_type": "",
+      "publication_date": "2026-10-24T09:00:00",
+      "candidate_required_location": "",
+      "description": "<p>Sell.</p>"
+    }
+  ]
+}

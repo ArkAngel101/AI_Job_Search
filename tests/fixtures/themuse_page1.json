@@ -1,0 +1,65 @@
+{
+  "page": 1,
+  "page_count": 2,
+  "items_per_page": 20,
+  "took": 5,
+  "timed_out": false,
+  "total": 3,
+  "aggregations": {},
+  "results": [
+    {
+      "contents": "<div><p>Analyze <b>data</b>.</p></div>",
+      "name": "Data Scientist",
+      "type": "external",
+      "publication_date": "2026-10-20T10:00:00Z",
+      "short_name": "data-scientist",
+      "model_type": "jobs",
+      "id": 5001,
+      "locations": [
+        {
+          "name": "New York, NY"
+        },
+        {
+          "name": "Flexible / Remote"
+        }
+      ],
+      "categories": [
+        {
+          "name": "Data Science"
+        }
+      ],
+      "levels": [
+        {
+          "name": "Entry Level",
+          "short_name": "entry"
+        }
+      ],
+      "tags": [],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/acme/data-scientist"
+      },
+      "company": {
+        "id": 1,
+        "short_name": "acme",
+        "name": "Acme"
+      }
+    },
+    {
+      "contents": "<p>Build.</p>",
+      "name": "Software Engineer",
+      "publication_date": "2026-10-19T10:00:00Z",
+      "id": 5002,
+      "locations": [
+        {
+          "name": "Austin, TX"
+        }
+      ],
+      "refs": {
+        "landing_page": "https://www.themuse.com/jobs/acme/software-engineer"
+      },
+      "company": {
+        "name": "Acme"
+      }
+    }
+  ]
+}

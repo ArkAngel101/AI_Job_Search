@@ -17,6 +17,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY boards.yaml ./boards.yaml
 
 USER forge
 EXPOSE 8000

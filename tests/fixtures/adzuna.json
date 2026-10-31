@@ -1,0 +1,49 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 2,
+  "mean": 100000,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "9001",
+      "title": "Machine Learning Engineer",
+      "company": {
+        "display_name": "Acme",
+        "__CLASS__": "Adzuna::API::Response::Company"
+      },
+      "location": {
+        "display_name": "Boston, Massachusetts",
+        "area": [
+          "US",
+          "Massachusetts",
+          "Boston"
+        ]
+      },
+      "description": "Train models &amp; ship them...",
+      "redirect_url": "https://www.adzuna.com/land/ad/9001?se=x",
+      "created": "2026-10-28T08:00:00Z",
+      "salary_min": 110000,
+      "salary_max": 140000,
+      "salary_is_predicted": "0",
+      "contract_type": "permanent",
+      "contract_time": "full_time",
+      "category": {
+        "label": "IT Jobs",
+        "tag": "it-jobs"
+      }
+    },
+    {
+      "id": "9002",
+      "title": "Data Analyst",
+      "company": {
+        "display_name": "Beta"
+      },
+      "location": {
+        "display_name": "Remote"
+      },
+      "description": "Analyze.",
+      "redirect_url": "https://www.adzuna.com/land/ad/9002",
+      "created": "2026-10-27T08:00:00Z"
+    }
+  ]
+}

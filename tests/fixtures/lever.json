@@ -1,0 +1,45 @@
+[
+  {
+    "id": "lv-1",
+    "text": "Data Scientist, Intern",
+    "categories": {
+      "location": "New York, NY",
+      "commitment": "Intern",
+      "team": "Data",
+      "allLocations": [
+        "New York, NY"
+      ]
+    },
+    "country": "US",
+    "descriptionPlain": "Analyze data.",
+    "description": "<div>Analyze data.</div>",
+    "lists": [
+      {
+        "text": "Requirements",
+        "content": "<li>SQL</li><li>Python</li>"
+      }
+    ],
+    "additionalPlain": "We are an equal opportunity employer.",
+    "hostedUrl": "https://jobs.lever.co/acme/lv-1",
+    "applyUrl": "https://jobs.lever.co/acme/lv-1/apply",
+    "workplaceType": "remote",
+    "createdAt": 1792000000000,
+    "salaryRange": {
+      "currency": "USD",
+      "interval": "per-year-salary",
+      "min": 90000,
+      "max": 120000
+    }
+  },
+  {
+    "id": "lv-2",
+    "text": "Office Manager",
+    "categories": {
+      "location": "Austin, TX"
+    },
+    "descriptionPlain": "Run the office.",
+    "lists": [],
+    "hostedUrl": "https://jobs.lever.co/acme/lv-2",
+    "workplaceType": "on-site"
+  }
+]

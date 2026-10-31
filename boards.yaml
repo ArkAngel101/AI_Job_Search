@@ -1,0 +1,15 @@
+# Company job boards per ATS. UNVERIFIED examples: check each slug in Settings or at the
+# board's public URL before relying on it. Add `name:` to control the company shown in the UI.
+# On first run this file is copied to /data/boards.yaml, which is the copy the app reads.
+greenhouse:
+  - {slug: anthropic, name: Anthropic}
+  - {slug: databricks, name: Databricks}
+  - {slug: stripe, name: Stripe}
+  - {slug: scaleai, name: Scale AI}
+lever:
+  - {slug: netflix, name: Netflix}
+ashby:
+  - {slug: openai, name: OpenAI}
+  - {slug: ramp, name: Ramp}
+workable:
+  - {slug: huggingface, name: Hugging Face}
