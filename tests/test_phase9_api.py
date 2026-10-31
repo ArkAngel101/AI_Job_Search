@@ -160,3 +160,4 @@ def test_unsafe_links_never_reach_the_ui(client: TestClient, url: str) -> None:
     assert client.get("/api/jobs").json()[0]["url"] == ""
     assert client.get("/api/jd", params={"key": key}).json()["url"] == ""
     assert db.safe_url("https://ok.example/x") == "https://ok.example/x" and db.safe_url("HTTP://ok.example") == "HTTP://ok.example"
+

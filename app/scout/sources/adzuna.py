@@ -11,6 +11,7 @@ from app.scout.models import Notes, RawListing
 from app.scout.text import positive_number, strip_html
 
 NAME = "adzuna"
+REQUIRES_ENV = ("ADZUNA_APP_ID", "ADZUNA_APP_KEY")  # a free key from developer.adzuna.com
 URL = "https://api.adzuna.com/v1/api/jobs/us/search/{page}"
 RESULTS_PER_PAGE = 20
 

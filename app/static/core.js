@@ -2,6 +2,13 @@
 /* Core helpers shared by every page. External text is only ever inserted with textContent / text nodes. */
 
 const $ = (selector, root = document) => root.querySelector(selector);
+
+/* Element.append() would print "null" or "[object HTMLElement]" for empty values and arrays.
+   Make it skip null/undefined/false and flatten arrays, so conditional children are safe everywhere. */
+const nativeAppend = Element.prototype.append;
+Element.prototype.append = function append(...nodes) {
+  nativeAppend.apply(this, nodes.flat(Infinity).filter((node) => node !== null && node !== undefined && node !== false));
+};
 const Forge = { pages: {}, runStatus: { active: false, run: null, sources: {} }, runListeners: new Set() };
 
 /** Create an element. Children are text nodes or elements; text is never parsed as HTML. */

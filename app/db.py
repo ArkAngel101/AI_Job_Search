@@ -274,6 +274,11 @@ def set_setting(conn: sqlite3.Connection, key: str, value: Any) -> None:
     )
 
 
+def delete_setting(conn: sqlite3.Connection, key: str) -> None:
+    """Remove a setting (it falls back to its default)."""
+    conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+
+
 # --- runs --------------------------------------------------------------------
 
 def create_run(conn: sqlite3.Connection, trigger: str) -> int:

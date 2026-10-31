@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
-from app import db, forge
+from app import db, forge, settings
 from app.adapter import cv_builder, cv_tailor, extract_text, llm
 from app.reader import reader
 from app.reader.add_job import AddJobError, add_job
@@ -395,3 +395,50 @@ def job_detail(key: Annotated[str, Query(min_length=1, max_length=64)]) -> dict[
     if detail is None:
         return JSONResponse({"detail": "Unknown job"}, status_code=404)
     return detail
+
+
+# --- settings ---------------------------------------------------------------------------------------
+
+@app.get("/api/settings")
+def get_settings() -> dict[str, Any]:
+    """The effective profile, sources, boards file, Claude settings, and read-only system status."""
+    return settings.effective_settings()
+
+
+@app.post("/api/settings", response_model=None)
+def save_settings(body: dict[str, Any]) -> dict[str, Any] | JSONResponse:
+    """Save a partial update (only the keys sent change). Numbers are clamped; bad choices return 400."""
+    try:
+        settings.apply_update(body)
+    except settings.SettingsError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return settings.effective_settings()
+
+
+class BoardsRequest(BaseModel):
+    """Body of POST /api/boards: the full text of boards.yaml."""
+
+    yaml: str = Field(max_length=settings.MAX_BOARDS_YAML_CHARS)
+
+
+@app.post("/api/boards", response_model=None)
+def save_boards(body: BoardsRequest) -> dict[str, Any] | JSONResponse:
+    """Validate and save boards.yaml."""
+    try:
+        counts = settings.save_boards_yaml(body.yaml)
+    except settings.SettingsError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=400)
+    return {"saved": True, "boards": counts}
+
+
+class BoardCheckRequest(BaseModel):
+    """Body of POST /api/boards/check."""
+
+    ats: Literal["greenhouse", "lever", "ashby", "workable"]
+    slug: str = Field(min_length=1, max_length=64, pattern=SLUG_RE.pattern)
+
+
+@app.post("/api/boards/check")
+def check_board(body: BoardCheckRequest) -> dict[str, Any]:
+    """Check whether a company board slug exists (one read-only request to that ATS's public API)."""
+    return settings.check_board(body.ats, body.slug)

@@ -18,7 +18,7 @@ import httpx
 import pytest
 import uvicorn
 
-from app import config, db, forge, security
+from app import config, db, forge, security, settings
 from app.adapter import export, llm
 from app.adapter.schema import CVStructured, TailoredCV
 from app.main import app
@@ -111,6 +111,7 @@ def live(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     web = Web()
     mp.setattr(forge, "make_client", lambda: ScoutClient(transport=httpx.MockTransport(web.handler), sleep=lambda s: None))
     mp.setattr(llm, "get_client", lambda: ComboClient())
+    mp.setattr(settings, "make_client", lambda: ScoutClient(transport=httpx.MockTransport(web.handler), sleep=lambda s: None))
     mp.setattr(export, "convert_to_pdf", lambda p: (p.with_suffix(".pdf").write_bytes(b"%PDF-1.4 fake"), p.with_suffix(".pdf"))[1])
     db.init_db()
     (config.DATA_DIR / "boards.yaml").write_text("greenhouse:\n  - {slug: acme, name: Acme Inc}\nlever:\n  - {slug: beta, name: Beta}\n")
@@ -169,6 +170,12 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
             Path(folder).mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(Path(folder) / f"{name}.png"), full_page=True)
 
+    def clean_text(where: str) -> None:
+        """No page, dialog, or drawer may show leaked JavaScript values."""
+        text = page.inner_text("body")
+        for bad in ("null", "undefined", "[object", "NaN"):
+            assert bad not in text, f"'{bad}' shown on {where}"
+
     def pill() -> str:
         return page.inner_text("#run-pill")
 
@@ -188,6 +195,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     assert "Nothing has happened yet" in page.inner_text("#view")
     assert "Remote OK" in page.inner_text("#footer") and "The Muse" in page.inner_text("#footer")
     no_overflow("overview (empty)")
+    clean_text("overview (empty)")
 
     # --- Jobs: scan, progress that survives a reload, ranked table ------------------------------------
     page.click("#nav a[data-page=jobs]")
@@ -217,6 +225,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     assert page.inner_text("#scan-card").count("Last scan:") == 1
     shot("jobs")
     no_overflow("jobs")
+    clean_text("jobs")
 
     # status dropdown persists across a reload
     select = page.query_selector("#jobs-table tbody tr select")
@@ -243,6 +252,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     wait_until(lambda: "Loading" not in page.inner_text(".drawer"))
     drawer_text = page.inner_text(".drawer").lower()  # headings are upper-cased by CSS
     assert "not been read yet" in drawer_text and "description" in drawer_text and "build ml systems" in drawer_text
+    clean_text("job drawer")
     page.keyboard.press("Escape")
     page.wait_for_selector(".drawer", state="detached")
 
@@ -281,12 +291,14 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     assert not page.is_disabled("#build-btn")
     shot("cv_review")
     no_overflow("cv (review)")
+    clean_text("cv (review)")
     page.click("#build-btn")
     wait_until(lambda: any(h2.inner_text().lower() == "base cv" for h2 in page.query_selector_all("#view h2")))
     assert "Jane Q. Doe" in page.inner_text("#view") and "Acme Corp" in page.inner_text("#view")
     assert "review before sending" not in page.inner_text("#view").lower()
     shot("cv_base")
     no_overflow("cv (base)")
+    clean_text("cv (base)")
 
     # --- Jobs: tailor with a cost confirmation, CV view, downloads ---------------------------------------------
     page.click("#nav a[data-page=jobs]")
@@ -300,6 +312,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     page.click("#confirm-tailor")
     page.wait_for_selector(".modal.wide .cv-preview", timeout=20000)
     assert "Passed validation" in page.inner_text(".modal.wide") and "Jane Q. Doe" in page.inner_text(".modal.wide")
+    clean_text("tailored CV dialog")
     page.click(".modal.wide button:has-text('Close')")
     page.wait_for_selector(f"tr[data-key='{key}'] .pill.good:has-text('CV done')")
     docx_link = page.get_attribute(f"tr[data-key='{key}'] a:has-text('DOC')", "href")
@@ -324,11 +337,72 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     assert "Claude" not in page.inner_text(".agent-forge .last") and page.inner_text(".agent-cv-adapter .kv:nth-child(5) strong") != "no LLM"
     shot("overview")
     no_overflow("overview (with data)")
+    clean_text("overview (with data)")
 
-    # --- Settings renders ---------------------------------------------------------------------------------------
+    # --- Settings: dirty tracking, chips, sliders, sources, reset, boards, Claude ------------------------------------
     page.click("#nav a[data-page=settings]")
-    page.wait_for_selector("#view .card")
+    page.wait_for_selector("#save-bar #save-btn")
+    assert page.is_disabled("#save-btn") and "All changes saved" in page.inner_text("#save-bar")
+    assert page.inner_text("#claude-model") == "claude-sonnet-5-5" and page.inner_text("#claude-key") == "key set"
+    assert "key not set" in page.inner_text("[data-key=adzuna]")  # status only: the key itself is never shown
+    assert "UITEST" not in page.content()
+    shot("settings")
     no_overflow("settings")
+    clean_text("settings")
+
+    page.click("#seniority button[data-level=mid]")
+    assert not page.is_disabled("#save-btn") and "Unsaved changes" in page.inner_text("#save-bar")
+    page.click("#discard-btn")
+    assert page.is_disabled("#save-btn") and "entry" == page.query_selector("#seniority button.on").get_attribute("data-level")
+
+    page.click("#seniority button[data-level=mid]")
+    page.fill("input[data-chips=keywords]", "robotics")
+    page.press("input[data-chips=keywords]", "Enter")
+    assert "robotics" in page.inner_text("[data-field=keywords]")
+    page.evaluate("""() => { const el = document.querySelector('#first_cut-range'); el.value = '80'; el.dispatchEvent(new Event('input', {bubbles: true})); }""")
+    assert page.inner_text("#first_cut-value") == "80" and page.inner_text("#final-value") == "80"  # final follows the first cut up
+    page.evaluate("""() => { const el = document.querySelector('#final-range'); el.value = '10'; el.dispatchEvent(new Event('input', {bubbles: true})); }""")
+    assert page.inner_text("#final-value") == "80"  # and cannot be dragged below it
+    page.evaluate("""() => { const el = document.querySelector('#first_cut-range'); el.value = '55'; el.dispatchEvent(new Event('input', {bubbles: true})); }""")
+    page.fill("#num-pages", "9")
+    page.dispatch_event("#num-pages", "change")
+    assert page.input_value("#num-pages") == "5"  # clamped
+    for name in ("greenhouse", "lever", "ashby", "workable", "adzuna", "remotive", "remoteok", "themuse", "jobicy"):
+        page.uncheck(f"#src-{name}")
+    assert page.is_disabled("#save-btn") and "at least one source" in page.inner_text("#save-issue")
+    page.check("#src-greenhouse")
+    page.check("#src-lever")
+    page.check("#src-remoteok")
+    page.fill("#monthly-cap", "25")
+    assert not page.is_disabled("#save-btn")
+    page.click("#save-btn")
+    wait_until(lambda: "All changes saved" in page.inner_text("#save-bar"))
+    assert "Settings saved" in page.inner_text("#toasts")
+
+    page.reload()
+    page.wait_for_selector("#save-bar #save-btn")
+    assert page.query_selector("#seniority button.on").get_attribute("data-level") == "mid"
+    assert "robotics" in page.inner_text("[data-field=keywords]") and page.inner_text("#final-value") == "80"
+    assert page.input_value("#num-pages") == "5" and page.input_value("#monthly-cap") == "25"
+    assert page.is_checked("#src-greenhouse") and not page.is_checked("#src-adzuna")
+    page.click("[data-field=keywords] >> xpath=ancestor::div[contains(@class,'field')] >> button:has-text('Reset to default')")
+    wait_until(lambda: "robotics" not in page.inner_text("[data-field=keywords]"))
+    assert "machine learning" in page.inner_text("[data-field=keywords]")
+    assert page.query_selector("#seniority button.on").get_attribute("data-level") == "mid"  # other settings are untouched
+
+    # boards editor: edit, save, and check a slug
+    page.fill("#boards-yaml", "# edited in the UI\ngreenhouse:\n  - {slug: acme, name: Acme Inc}\n")
+    page.click("#boards-save")
+    page.wait_for_selector("#boards-message .pill.good")
+    page.fill("#check-slug", "acme")
+    page.click("#check-btn")
+    wait_until(lambda: "Found 2 open jobs" in page.inner_text("#check-result"))
+    page.reload()
+    page.wait_for_selector("#boards-yaml")
+    assert "# edited in the UI" in page.input_value("#boards-yaml")
+    assert "Data folder" in page.inner_text("#view") and "scheduler" in page.inner_text("#view").lower()
+    no_overflow("settings (edited)")
+    clean_text("settings (edited)")
 
     assert problems == [], problems
     context.close()
