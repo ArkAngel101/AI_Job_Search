@@ -34,6 +34,17 @@ A local web app that finds US AI/ML, data science, and similar jobs from free so
 21. **JSearch:** skipped. The RapidAPI docs page could not be read, and it is optional. Revisit if you want it.
 22. **`boards.yaml`:** the image ships a default copy; on first run it is copied to `/data/boards.yaml`, and that editable copy is the one the app reads (the project root is not mounted).
 
+### Phase 7-8 findings
+
+23. **Upload without `python-multipart`:** `POST /api/cv?filename=...` takes the raw file as the request body (5 MB cap, enforced while streaming). The stored name is always `cv.<ext>`; the original name is only kept as a cleaned label.
+24. **Two-step CV build:** an upload is free (extract text, detect contact details). The paid call starts only from `POST /api/cv/build` with both `confirm_cost` and `confirm_contacts` set. The server refuses to build if no name is known, or if an email, phone, or web address is still in the text and was not deliberately kept.
+25. **What counts as contact details:** name (also its shorter forms, e.g. "Jane Doe" for "Jane Q. Doe"), emails, phones, links, street addresses, and "City, ST ZIP". A bare "City, ST" is not hidden, so employer locations survive; add it by hand on the CV page to hide it. Bare personal domains (janedoe.dev) are recognized only in the first 12 lines.
+26. **Model call:** `anthropic==2.3.0`, `client.messages.parse` with the pydantic schema, `output_config.effort = medium`, no sampling parameters, no forced tool use. Model is `CLAUDE_MODEL` (default `claude-sonnet-5-5`). The server-side `fallbacks` option was not added; a refusal is reported to the owner as an error.
+27. **Cost shown before every call:** tokens come from `messages.count_tokens` (free) and fall back to an approximation; dollars use the per-million-token prices from Settings (key `claude_prices`). Monthly cap (key `monthly_cap_usd`) is a hard stop; if a cap is set but prices are missing, calls are refused.
+28. **Profile suggestions:** stored under settings key `cv_suggestions` and merged by `load_profile()` only for settings the owner has not changed (a key present in the saved `profile` setting counts as changed). Phase 10 must save only the keys the owner actually changed.
+29. **Promote is synchronous** (one tailoring at a time, 409 otherwise). An existing tailored CV is reused for free with no confirmation. A failed validation after the one retry is saved with `validation.passed = false` and a warning; the job is still marked tailored.
+30. **Validator extras:** a skill or term reported once; numbers, headline and summary are checked as well as bullets; sentence-initial words are not treated as proper nouns.
+
 ---
 
 ## 0. Overview

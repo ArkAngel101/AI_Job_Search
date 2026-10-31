@@ -495,3 +495,38 @@ def insert_cv_version(conn: sqlite3.Connection, raw_filename: str, base_cv_json:
         (now_iso(), raw_filename, base_cv_json, int(valid)),
     )
     return int(cur.lastrowid or 0)
+
+
+# --- tailored CVs ------------------------------------------------------------------
+
+def get_tailored(conn: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """The tailored CV stored for a job (JSON fields decoded), or None."""
+    row = conn.execute("SELECT * FROM tailored_cvs WHERE job_key = ?", (key,)).fetchone()
+    if row is None:
+        return None
+    data = dict(row)
+    data["cv"] = json.loads(data.pop("cv_json"))
+    data["validation"] = json.loads(data.pop("validation_json") or "{}")
+    return data
+
+
+def save_tailored(
+    conn: sqlite3.Connection, key: str, cv: dict[str, Any], docx_path: str | None, pdf_path: str | None,
+    validation: dict[str, Any],
+) -> None:
+    """Store (or replace) a job's tailored CV, point the job at its .docx, and mark the job tailored."""
+    conn.execute(
+        "INSERT INTO tailored_cvs (job_key, created_at, cv_json, docx_path, pdf_path, validation_json)"
+        " VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(job_key) DO UPDATE SET created_at = excluded.created_at,"
+        " cv_json = excluded.cv_json, docx_path = excluded.docx_path, pdf_path = excluded.pdf_path,"
+        " validation_json = excluded.validation_json",
+        (key, now_iso(), json.dumps(cv), docx_path, pdf_path, json.dumps(validation)),
+    )
+    conn.execute("UPDATE jobs SET cv_path = ? WHERE key = ?", (docx_path, key))
+    advance_status(conn, key, "tailored")
+
+
+def set_export_paths(conn: sqlite3.Connection, key: str, docx_path: str | None, pdf_path: str | None) -> None:
+    """Update where a tailored CV's files live (after they are regenerated)."""
+    conn.execute("UPDATE tailored_cvs SET docx_path = ?, pdf_path = ? WHERE job_key = ?", (docx_path, pdf_path, key))
+    conn.execute("UPDATE jobs SET cv_path = ? WHERE key = ?", (docx_path, key))

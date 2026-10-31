@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import FileResponse, JSONResponse
 
 from app import db, forge
-from app.adapter import cv_builder, extract_text, llm
+from app.adapter import cv_builder, cv_tailor, extract_text, llm
 from app.reader.add_job import AddJobError, add_job
 from app.scout.boards import SLUG_RE, add_board
 from app.config import STATIC_DIR
@@ -221,3 +221,78 @@ def cv_build(body: BuildRequest) -> dict[str, bool] | JSONResponse:
     except llm.LLMError as exc:  # pragma: no cover - raised only by synchronous callers
         return JSONResponse({"detail": str(exc)}, status_code=422)
     return {"started": True}
+
+
+# --- tailoring (CV Adapter) ------------------------------------------------------------------
+
+JobKey = Annotated[str, Query(min_length=1, max_length=64)]
+_MEDIA = {
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pdf": "application/pdf",
+}
+
+
+def _llm_failure(exc: llm.LLMError) -> JSONResponse:
+    status = 422 if isinstance(exc, llm.NotConfigured | llm.BudgetExceeded) else 502
+    return JSONResponse({"detail": str(exc)}, status_code=status)
+
+
+@app.get("/api/promote/estimate", response_model=None)
+def promote_estimate(key: JobKey) -> dict[str, Any] | JSONResponse:
+    """Estimated cost of tailoring the CV to one job (reads the job first; free)."""
+    try:
+        return cv_tailor.estimate(key)
+    except cv_tailor.PromoteBlocked as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+    except KeyError:
+        return JSONResponse({"detail": "Unknown job"}, status_code=404)
+
+
+class PromoteRequest(BaseModel):
+    """Body of POST /api/promote."""
+
+    key: str = Field(min_length=1, max_length=64)
+    confirm_cost: bool = False
+
+
+@app.post("/api/promote", response_model=None)
+def promote(body: PromoteRequest) -> dict[str, Any] | JSONResponse:
+    """Tailor the CV to one job. An existing tailored CV is reused for free; otherwise needs confirm_cost."""
+    try:
+        return cv_tailor.promote(body.key, body.confirm_cost)
+    except cv_tailor.PromoteBlocked as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+    except llm.LLMError as exc:
+        return _llm_failure(exc)
+
+
+@app.get("/api/tailored", response_model=None)
+def tailored(key: JobKey) -> dict[str, Any] | JSONResponse:
+    """A job's tailored CV with its validation result."""
+    with db.connect() as conn:
+        stored = db.get_tailored(conn, key)
+    if stored is None:
+        return JSONResponse({"detail": "No tailored CV for this job"}, status_code=404)
+    return cv_tailor.describe_result(key, stored, reused=True)
+
+
+def _download(key: str, kind: str) -> FileResponse | JSONResponse:
+    try:
+        path, name = cv_tailor.export_file(key, kind)
+    except ValueError:
+        return JSONResponse({"detail": "Invalid request"}, status_code=400)
+    except LookupError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=404)
+    return FileResponse(path, media_type=_MEDIA[kind], filename=name)
+
+
+@app.get("/api/cv-docx", response_model=None)
+def cv_docx(key: JobKey) -> FileResponse | JSONResponse:
+    """Download a tailored CV as .docx."""
+    return _download(key, "docx")
+
+
+@app.get("/api/cv-pdf", response_model=None)
+def cv_pdf(key: JobKey) -> FileResponse | JSONResponse:
+    """Download a tailored CV as .pdf."""
+    return _download(key, "pdf")

@@ -102,3 +102,20 @@ class BaseCV(BaseModel):
         if not (self.experience or self.education or self.skills):
             raise ValueError("no experience, education, or skills were found")
         return self
+
+
+class TailoredRole(BaseModel):
+    """One position as returned by the tailoring call. The key is (company, role, start), copied exactly."""
+
+    company: str
+    role: str
+    start: str
+    bullets: list[str]
+
+
+class TailoredCV(BaseModel):
+    """What Claude may rewrite: the headline, the summary, and each position's bullets. Nothing else."""
+
+    headline: str
+    summary: str
+    experience: list[TailoredRole]
