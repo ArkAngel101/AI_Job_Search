@@ -1,0 +1,123 @@
+# AI/ML skill vocabulary. Read-only; shipped in the image.
+# default_scoring_skills: seeded into the profile until a CV is uploaded (CV skills are merged in later).
+# vocabulary: every term Job Reader (Phase 6) looks for in job descriptions.
+default_scoring_skills:
+  - Python
+  - SQL
+  - machine learning
+  - deep learning
+  - PyTorch
+  - TensorFlow
+  - scikit-learn
+  - pandas
+  - NLP
+  - LLM
+  - computer vision
+  - AWS
+  - Docker
+  - Spark
+  - MLOps
+  - statistics
+
+vocabulary:
+  # Languages and tools
+  - Python
+  - R
+  - SQL
+  - Scala
+  - Java
+  - C++
+  - Julia
+  - Bash
+  - Git
+  - Linux
+  # ML frameworks and libraries
+  - PyTorch
+  - TensorFlow
+  - Keras
+  - scikit-learn
+  - XGBoost
+  - LightGBM
+  - JAX
+  - Hugging Face
+  - Transformers
+  - spaCy
+  - NLTK
+  - OpenCV
+  - pandas
+  - NumPy
+  - SciPy
+  - Matplotlib
+  # LLM and generative AI
+  - LLM
+  - RAG
+  - LangChain
+  - LlamaIndex
+  - prompt engineering
+  - fine-tuning
+  - RLHF
+  - vector database
+  - embeddings
+  - generative AI
+  - OpenAI
+  - agents
+  # ML concepts
+  - machine learning
+  - deep learning
+  - NLP
+  - natural language processing
+  - computer vision
+  - reinforcement learning
+  - neural networks
+  - CNN
+  - RNN
+  - GAN
+  - feature engineering
+  - time series
+  - recommender systems
+  - anomaly detection
+  - A/B testing
+  - statistics
+  - probability
+  - linear algebra
+  - optimization
+  - data visualization
+  - experiment design
+  # Data engineering
+  - Spark
+  - PySpark
+  - Hadoop
+  - Airflow
+  - dbt
+  - Kafka
+  - Snowflake
+  - BigQuery
+  - Databricks
+  - Redshift
+  - PostgreSQL
+  - MySQL
+  - MongoDB
+  - ETL
+  - data pipelines
+  # BI
+  - Tableau
+  - Power BI
+  - Looker
+  - Excel
+  # MLOps, cloud and serving
+  - MLOps
+  - MLflow
+  - Kubeflow
+  - Docker
+  - Kubernetes
+  - CI/CD
+  - Terraform
+  - FastAPI
+  - Flask
+  - AWS
+  - GCP
+  - Azure
+  - SageMaker
+  - Vertex AI
+  - model deployment
+  - model monitoring

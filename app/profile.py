@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.skills import default_scoring_skills
+
 SOURCE_NAMES = (
     "greenhouse", "lever", "ashby", "workable",
     "adzuna", "remotive", "remoteok", "themuse", "jobicy",
@@ -25,7 +27,8 @@ class Profile(BaseModel):
         "LLM", "deep learning", "MLOps", "PyTorch", "applied scientist",
     ])
     seniority: Seniority = "entry"
-    scoring_skills: list[str] = Field(default_factory=list)  # seeded from skills.yaml in Phase 4
+    # Seeded from skills.yaml until a CV is uploaded; CV skills are merged in, never overwriting edits.
+    scoring_skills: list[str] = Field(default_factory=default_scoring_skills)
     first_cut: int = 50
     final: int = 65
     pages: int = 2

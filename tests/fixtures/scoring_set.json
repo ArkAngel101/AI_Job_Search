@@ -1,0 +1,262 @@
+[
+ {
+  "group": "entry",
+  "title": "Machine Learning Engineer Intern",
+  "company": "Acme",
+  "location": "San Francisco, CA",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "0",
+  "url": "https://example.test/0"
+ },
+ {
+  "group": "entry",
+  "title": "Data Scientist, New Grad (2026)",
+  "company": "Beta Labs",
+  "location": "New York, NY",
+  "description": "Python, SQL, statistics, pandas and machine learning for product analytics.",
+  "source": "fixture",
+  "source_id": "1",
+  "url": "https://example.test/1"
+ },
+ {
+  "group": "entry",
+  "title": "AI Engineer (Entry Level)",
+  "company": "Gamma AI",
+  "location": "Remote - US",
+  "description": "Build LLM applications in Python on AWS.",
+  "source": "fixture",
+  "source_id": "2",
+  "url": "https://example.test/2"
+ },
+ {
+  "group": "entry",
+  "title": "NLP Engineer, Junior",
+  "company": "Delta",
+  "location": "Boston, MA",
+  "description": "NLP with transformers in PyTorch and Python.",
+  "source": "fixture",
+  "source_id": "3",
+  "url": "https://example.test/3"
+ },
+ {
+  "group": "entry",
+  "title": "Associate Machine Learning Engineer",
+  "company": "Epsilon",
+  "location": "Seattle, WA",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "4",
+  "url": "https://example.test/4"
+ },
+ {
+  "group": "entry",
+  "title": "Computer Vision Engineer Intern",
+  "company": "Zeta Robotics",
+  "location": "Austin, TX",
+  "description": "Computer vision, deep learning, PyTorch, Docker.",
+  "source": "fixture",
+  "source_id": "5",
+  "url": "https://example.test/5"
+ },
+ {
+  "group": "entry",
+  "title": "Applied Scientist",
+  "company": "Eta",
+  "location": "Remote",
+  "description": "Applied machine learning research. Python, statistics.",
+  "source": "fixture",
+  "source_id": "6",
+  "url": "https://example.test/6"
+ },
+ {
+  "group": "entry",
+  "title": "MLOps Engineer",
+  "company": "Theta",
+  "location": "Denver, CO",
+  "description": "MLOps on AWS with Docker and Python.",
+  "source": "fixture",
+  "source_id": "7",
+  "url": "https://example.test/7"
+ },
+ {
+  "group": "entry",
+  "title": "Data Analyst",
+  "company": "Iota",
+  "location": "Chicago, IL",
+  "description": "SQL, statistics and pandas for dashboards.",
+  "source": "fixture",
+  "source_id": "8",
+  "url": "https://example.test/8"
+ },
+ {
+  "group": "senior",
+  "title": "Senior Machine Learning Engineer",
+  "company": "Acme",
+  "location": "San Francisco, CA",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "9",
+  "url": "https://example.test/9"
+ },
+ {
+  "group": "senior",
+  "title": "Staff Machine Learning Engineer",
+  "company": "Acme",
+  "location": "San Francisco, CA",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "10",
+  "url": "https://example.test/10"
+ },
+ {
+  "group": "senior",
+  "title": "Principal Applied Scientist",
+  "company": "Kappa",
+  "location": "Seattle, WA",
+  "description": "Lead research. Python, deep learning.",
+  "source": "fixture",
+  "source_id": "11",
+  "url": "https://example.test/11"
+ },
+ {
+  "group": "senior",
+  "title": "Director of Data Science",
+  "company": "Lambda",
+  "location": "New York, NY",
+  "description": "Lead a data science org. Python, SQL.",
+  "source": "fixture",
+  "source_id": "12",
+  "url": "https://example.test/12"
+ },
+ {
+  "group": "senior",
+  "title": "Machine Learning Engineer (10+ years experience)",
+  "company": "Mu",
+  "location": "Austin, TX",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "13",
+  "url": "https://example.test/13"
+ },
+ {
+  "group": "offdomain",
+  "title": "Sales Development Representative, AI Platform",
+  "company": "Nu",
+  "location": "San Francisco, CA",
+  "description": "Sell our machine learning platform to enterprise buyers.",
+  "source": "fixture",
+  "source_id": "14",
+  "url": "https://example.test/14"
+ },
+ {
+  "group": "offdomain",
+  "title": "Technical Recruiter, Machine Learning",
+  "company": "Xi",
+  "location": "Palo Alto, CA",
+  "description": "Recruit machine learning engineers.",
+  "source": "fixture",
+  "source_id": "15",
+  "url": "https://example.test/15"
+ },
+ {
+  "group": "offdomain",
+  "title": "Executive Assistant",
+  "company": "Omicron",
+  "location": "New York, NY",
+  "description": "Support the CEO calendar and travel.",
+  "source": "fixture",
+  "source_id": "16",
+  "url": "https://example.test/16"
+ },
+ {
+  "group": "offdomain",
+  "title": "Account Executive, Data & AI",
+  "company": "Pi",
+  "location": "Remote - US",
+  "description": "Own a quota selling data and AI software.",
+  "source": "fixture",
+  "source_id": "17",
+  "url": "https://example.test/17"
+ },
+ {
+  "group": "offdomain",
+  "title": "Mechanical Engineer Intern",
+  "company": "Rho",
+  "location": "Detroit, MI",
+  "description": "CAD and thermal analysis for vehicles.",
+  "source": "fixture",
+  "source_id": "18",
+  "url": "https://example.test/18"
+ },
+ {
+  "group": "offdomain",
+  "title": "Software Engineer Intern",
+  "company": "Sigma",
+  "location": "Palo Alto, CA",
+  "description": "Java, Spring and Kubernetes services.",
+  "source": "fixture",
+  "source_id": "19",
+  "url": "https://example.test/19"
+ },
+ {
+  "group": "offdomain",
+  "title": "Marketing Manager",
+  "company": "Tau",
+  "location": "Austin, TX",
+  "description": "Run campaigns and brand.",
+  "source": "fixture",
+  "source_id": "20",
+  "url": "https://example.test/20"
+ },
+ {
+  "group": "offdomain",
+  "title": "Registered Nurse",
+  "company": "Upsilon",
+  "location": "Houston, TX",
+  "description": "Patient care.",
+  "source": "fixture",
+  "source_id": "21",
+  "url": "https://example.test/21"
+ },
+ {
+  "group": "offdomain",
+  "title": "Data Entry Clerk",
+  "company": "Phi",
+  "location": "Remote - US",
+  "description": "Enter records into spreadsheets.",
+  "source": "fixture",
+  "source_id": "22",
+  "url": "https://example.test/22"
+ },
+ {
+  "group": "offdomain",
+  "title": "Customer Success Manager, ML Platform",
+  "company": "Chi",
+  "location": "Boston, MA",
+  "description": "Onboard customers to our ML platform.",
+  "source": "fixture",
+  "source_id": "23",
+  "url": "https://example.test/23"
+ },
+ {
+  "group": "nonus",
+  "title": "Machine Learning Engineer Intern",
+  "company": "Acme UK",
+  "location": "London, UK",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "24",
+  "url": "https://example.test/24"
+ },
+ {
+  "group": "nonus",
+  "title": "Data Scientist, New Grad",
+  "company": "Psi",
+  "location": "Remote - Europe",
+  "description": "We build machine learning systems. You will use Python, PyTorch, deep learning and SQL on AWS.",
+  "source": "fixture",
+  "source_id": "25",
+  "url": "https://example.test/25"
+ }
+]
