@@ -9,7 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from app import config
-from app.scout.dedup import MergedListing, canonical_url, is_better
+from app.scout.dedup import MergedListing, canonical_url, is_better, job_key
+from app.scout.dedup import aliases as listing_aliases
+from app.scout.models import RawListing
 
 # Job status only moves forward through this order.
 JOB_STATUSES = ("seen", "matched", "read", "tailored")
@@ -352,6 +354,21 @@ def upsert_seen(
     return key, False
 
 
+_SUMMARY_COLUMNS = (
+    "key, title, company, location, url, source, score, times_seen, closed, status, user_status, first_run"
+)
+
+
+def _summary(row: sqlite3.Row, rank: int | None, latest_run_id: int | None) -> dict[str, Any]:
+    return {
+        "rank": rank, "score": row["score"], "title": row["title"], "company": row["company"],
+        "location": row["location"], "url": row["url"], "source": row["source"],
+        "new": row["first_run"] is not None and row["first_run"] == latest_run_id,
+        "times_seen": row["times_seen"], "closed": bool(row["closed"]), "status": row["status"],
+        "user_status": row["user_status"], "key": row["key"],
+    }
+
+
 def list_jobs(
     conn: sqlite3.Connection,
     *,
@@ -390,20 +407,18 @@ def list_jobs(
         pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
         args += [pattern, pattern]
     rows = conn.execute(
-        "SELECT key, title, company, location, url, source, score, times_seen, closed, status, user_status,"
-        f" first_run FROM jobs WHERE {' AND '.join(where)}"
+        f"SELECT {_SUMMARY_COLUMNS} FROM jobs WHERE {' AND '.join(where)}"
         " ORDER BY score DESC, last_run DESC, title ASC LIMIT ? OFFSET ?",
         (*args, limit, offset),
     ).fetchall()
-    return [
-        {
-            "rank": offset + index, "score": row["score"], "title": row["title"], "company": row["company"],
-            "location": row["location"], "url": row["url"], "source": row["source"],
-            "new": row["first_run"] == latest, "times_seen": row["times_seen"], "closed": bool(row["closed"]),
-            "status": row["status"], "user_status": row["user_status"], "key": row["key"],
-        }
-        for index, row in enumerate(rows, start=1)
-    ]
+    return [_summary(row, offset + index, latest) for index, row in enumerate(rows, start=1)]
+
+
+def get_job_summary(conn: sqlite3.Connection, key: str) -> dict[str, Any] | None:
+    """One job in the same shape as list_jobs rows (rank is None), or None if unknown."""
+    latest = conn.execute("SELECT MAX(id) AS id FROM runs").fetchone()["id"]
+    row = conn.execute(f"SELECT {_SUMMARY_COLUMNS} FROM jobs WHERE key = ?", (key,)).fetchone()
+    return None if row is None else _summary(row, None, latest)
 
 
 def overview_counts(conn: sqlite3.Connection) -> dict[str, int]:
@@ -426,3 +441,29 @@ def overview_counts(conn: sqlite3.Connection) -> dict[str, int]:
         "known": int(counts["known"] or 0),
         "new": int(counts["new"] or 0),
     }
+
+
+def insert_added_job(conn: sqlite3.Connection, item: RawListing, board: str | None) -> tuple[str, bool]:
+    """Store a job the owner added by URL or text. Returns (key, created); a known job is reused."""
+    alias_list = listing_aliases(item)
+    existing = find_job_key(conn, alias_list)
+    if existing:
+        return existing, False
+    key = job_key(item.source, item.source_id)
+    conn.execute(
+        "INSERT INTO jobs (key, title, company, location, url, canonical_url, source, source_id, description,"
+        " status, times_seen, closed, board) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'seen', 1, 0, ?)",
+        (key, item.title, item.company, item.location, item.url, canonical_url(item.url), item.source,
+         item.source_id, item.description, board),
+    )
+    add_aliases(conn, key, alias_list)
+    return key, True
+
+
+def save_jd(conn: sqlite3.Connection, key: str, jd: dict[str, Any], score: int, breakdown: dict[str, Any]) -> None:
+    """Cache the extracted job description, store the final-mode score, and mark the job read."""
+    conn.execute(
+        "UPDATE jobs SET jd_json = ?, score = ?, score_breakdown_json = ? WHERE key = ?",
+        (json.dumps(jd), score, json.dumps(breakdown), key),
+    )
+    advance_status(conn, key, "read")

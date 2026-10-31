@@ -1,0 +1,26 @@
+Machine Learning Engineer, New Grad
+
+About the role
+We are a small team building recommendation systems.
+
+Responsibilities
+- Train and evaluate deep learning models in PyTorch
+- Build data pipelines with Spark and Airflow
+- Deploy models to AWS with Docker
+
+Requirements
+- Bachelor's degree in Computer Science or a related field
+- Proficiency in Python and SQL
+- Familiarity with machine learning fundamentals and statistics
+- 0-2 years of experience
+
+Nice to have
+- Experience with Kubernetes
+- Knowledge of LLMs and RAG
+- Publications in NLP
+
+Benefits
+- Health insurance. Salary $110,000 - $140,000 per year.
+
+You must be authorized to work in the United States. We are unable to provide visa sponsorship at this time.
+This is a fully remote position.

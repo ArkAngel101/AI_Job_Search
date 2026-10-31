@@ -2,6 +2,7 @@
 import json
 import sys
 import threading
+import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -264,7 +265,11 @@ def test_run_endpoint_rejects_a_second_run_with_409_and_reports_progress(web: We
     again = client.post("/api/run", headers=HEADERS)
     assert again.status_code == 409
 
-    status = client.get("/api/run-status").json()  # a "page reload" mid-run still sees live state
+    for _ in range(200):  # the background thread needs a moment to start its first source
+        status = client.get("/api/run-status").json()  # a "page reload" mid-run still sees live state
+        if "running" in status["sources"].values():
+            break
+        time.sleep(0.01)
     assert status["active"] is True and status["run"]["status"] == "running"
     assert set(status["sources"]) == {"greenhouse", "lever", "remoteok"}
     assert "running" in status["sources"].values()

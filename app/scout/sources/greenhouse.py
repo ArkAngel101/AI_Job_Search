@@ -12,7 +12,7 @@ NAME = "greenhouse"
 URL = "https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
 
 
-def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
+def fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
     data = get_json(client, NAME, URL.format(slug=board.slug), params={"content": "true"})
     jobs = data["jobs"]
     total = (data.get("meta") or {}).get("total")
@@ -36,4 +36,4 @@ def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
 
 def fetch(profile: Profile, boards: dict[str, list[Board]], client: ScoutClient) -> tuple[list[RawListing], Notes]:
     """Fetch all listed Greenhouse boards."""
-    return run_boards(NAME, boards.get(NAME, []), client, _fetch_board)
+    return run_boards(NAME, boards.get(NAME, []), client, fetch_board)

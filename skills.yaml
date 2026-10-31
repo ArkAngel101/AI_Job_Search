@@ -60,7 +60,7 @@ vocabulary:
   - embeddings
   - generative AI
   - OpenAI
-  - agents
+  - AI agents
   # ML concepts
   - machine learning
   - deep learning
@@ -80,7 +80,7 @@ vocabulary:
   - statistics
   - probability
   - linear algebra
-  - optimization
+  - mathematical optimization
   - data visualization
   - experiment design
   # Data engineering

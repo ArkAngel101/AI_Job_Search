@@ -19,7 +19,7 @@ def _salary(job: dict) -> tuple[float | None, float | None]:
     return None, None
 
 
-def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
+def fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
     data = get_json(client, NAME, URL.format(slug=board.slug), params={"includeCompensation": "true"})
     listings = []
     for job in data["jobs"]:
@@ -46,4 +46,4 @@ def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
 
 def fetch(profile: Profile, boards: dict[str, list[Board]], client: ScoutClient) -> tuple[list[RawListing], Notes]:
     """Fetch all listed Ashby boards."""
-    return run_boards(NAME, boards.get(NAME, []), client, _fetch_board)
+    return run_boards(NAME, boards.get(NAME, []), client, fetch_board)

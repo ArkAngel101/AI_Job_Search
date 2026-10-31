@@ -15,7 +15,7 @@ URL = "https://apply.workable.com/api/v1/widget/accounts/{slug}"
 MIN_INTERVAL = 3.0
 
 
-def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
+def fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
     data = get_json(client, NAME, URL.format(slug=board.slug), params={"details": "true"}, min_interval=MIN_INTERVAL)
     company = data.get("name") or board.name
     return [
@@ -38,4 +38,4 @@ def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
 
 def fetch(profile: Profile, boards: dict[str, list[Board]], client: ScoutClient) -> tuple[list[RawListing], Notes]:
     """Fetch all listed Workable accounts."""
-    return run_boards(NAME, boards.get(NAME, []), client, _fetch_board)
+    return run_boards(NAME, boards.get(NAME, []), client, fetch_board)

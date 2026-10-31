@@ -19,7 +19,7 @@ def _description(posting: dict) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
-def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
+def fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
     data = get_json(client, NAME, URL.format(slug=board.slug), params={"mode": "json"}, min_interval=MIN_INTERVAL)
     if not isinstance(data, list):
         raise FetchError("unexpected response shape")
@@ -47,4 +47,4 @@ def _fetch_board(board: Board, client: ScoutClient) -> list[RawListing]:
 
 def fetch(profile: Profile, boards: dict[str, list[Board]], client: ScoutClient) -> tuple[list[RawListing], Notes]:
     """Fetch all listed Lever boards."""
-    return run_boards(NAME, boards.get(NAME, []), client, _fetch_board)
+    return run_boards(NAME, boards.get(NAME, []), client, fetch_board)

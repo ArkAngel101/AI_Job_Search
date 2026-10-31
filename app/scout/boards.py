@@ -1,4 +1,5 @@
 """Company boards per ATS, read from boards.yaml (owner-editable copy lives in /data)."""
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -56,3 +57,21 @@ def parse_boards(text: str) -> dict[str, list[Board]]:
 def load_boards() -> dict[str, list[Board]]:
     """Load the owner's boards, creating the file from the default if needed."""
     return parse_boards(ensure_boards_file().read_text(encoding="utf-8"))
+
+
+def add_board(ats: str, slug: str, name: str | None = None) -> bool:
+    """Add a company board to the editable boards file. Returns False if it is already listed."""
+    if ats not in ATS_NAMES or not SLUG_RE.match(slug):
+        raise ValueError("Unknown ATS or invalid board slug")
+    path = ensure_boards_file()
+    boards = parse_boards(path.read_text(encoding="utf-8"))
+    if any(b.slug.lower() == slug.lower() for b in boards.get(ats, [])):
+        return False
+    boards.setdefault(ats, []).append(Board(slug=slug, name=(name or slug).strip() or slug))
+    text = yaml.safe_dump(
+        {a: [{"slug": b.slug, "name": b.name} for b in items] for a, items in boards.items()}, sort_keys=False
+    )
+    temp = path.with_suffix(".yaml.tmp")
+    temp.write_text(text, encoding="utf-8")
+    os.replace(temp, path)  # atomic: readers never see a half-written file
+    return True
