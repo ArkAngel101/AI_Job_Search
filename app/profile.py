@@ -1,8 +1,9 @@
 """The owner's search profile (defaults from the build spec; editable in Settings, Phase 10)."""
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
+from app import db
 from app.skills import default_scoring_skills
 
 SOURCE_NAMES = (
@@ -35,3 +36,13 @@ class Profile(BaseModel):
     max_age_days: int = 30
     results_per_scan: int = 100
     enabled_sources: list[str] = Field(default_factory=lambda: list(SOURCE_NAMES))
+
+
+def load_profile() -> Profile:
+    """Defaults overlaid with whatever the owner saved in Settings (falls back to defaults if invalid)."""
+    with db.connect() as conn:
+        stored = db.get_setting(conn, "profile", {})
+    try:
+        return Profile.model_validate({**Profile().model_dump(), **stored})
+    except ValidationError:
+        return Profile()

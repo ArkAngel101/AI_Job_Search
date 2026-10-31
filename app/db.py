@@ -1,12 +1,15 @@
 """SQLite schema, connections, and write helpers. All database writes go through this module."""
+import json
 import sqlite3
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from app import config
+from app.scout.dedup import MergedListing, canonical_url, is_better
 
 # Job status only moves forward through this order.
 JOB_STATUSES = ("seen", "matched", "read", "tailored")
@@ -250,3 +253,176 @@ def log_activity(agent: str, description: str, status: str, model: str = "none")
             (entry_id, agent, text, status, model or "none", now_iso()),
         )
     return entry_id
+
+
+# --- settings ----------------------------------------------------------------
+
+def get_setting(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
+    """Read a JSON setting."""
+    row = conn.execute("SELECT value_json FROM settings WHERE key = ?", (key,)).fetchone()
+    return default if row is None else json.loads(row["value_json"])
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: Any) -> None:
+    """Write a JSON setting (insert or replace this key only; other keys are untouched)."""
+    conn.execute(
+        "INSERT INTO settings (key, value_json) VALUES (?, ?)"
+        " ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json",
+        (key, json.dumps(value)),
+    )
+
+
+# --- runs --------------------------------------------------------------------
+
+def create_run(conn: sqlite3.Connection, trigger: str) -> int:
+    """Start a run record in the 'running' state and return its id."""
+    cur = conn.execute(
+        "INSERT INTO runs (trigger, status, started_at) VALUES (?, 'running', ?)", (trigger, now_iso())
+    )
+    return int(cur.lastrowid or 0)
+
+
+def finish_run(conn: sqlite3.Connection, run_id: int, status: str, summary: dict[str, Any]) -> None:
+    """Close a run as 'completed' or 'failed' with its summary."""
+    conn.execute(
+        "UPDATE runs SET status = ?, ended_at = ?, summary_json = ? WHERE id = ?",
+        (status, now_iso(), json.dumps(summary), run_id),
+    )
+
+
+def fail_stale_runs(conn: sqlite3.Connection) -> int:
+    """Mark runs left 'running' by a previous process as failed; return how many."""
+    cur = conn.execute(
+        "UPDATE runs SET status = 'failed', ended_at = ?, summary_json = ? WHERE status = 'running'",
+        (now_iso(), json.dumps({"error": "interrupted (the app restarted during this run)"})),
+    )
+    return cur.rowcount
+
+
+def latest_run(conn: sqlite3.Connection) -> dict[str, Any] | None:
+    """The most recent run with its summary decoded, or None."""
+    row = conn.execute("SELECT * FROM runs ORDER BY id DESC LIMIT 1").fetchone()
+    if row is None:
+        return None
+    run = dict(row)
+    run["summary"] = json.loads(run.pop("summary_json") or "{}")
+    return run
+
+
+# --- job memory --------------------------------------------------------------
+
+def upsert_seen(
+    conn: sqlite3.Connection, merged: MergedListing, score: int, breakdown: dict[str, Any], run_id: int
+) -> tuple[str, bool]:
+    """Insert a job, or bump times_seen / last_run on one already known. Returns (key, is_new).
+
+    A job matches an existing row on any alias (id, url, fuzzy). Status only moves forward. A better
+    listing (ATS first, then fuller description) replaces the stored listing fields. Jobs already read
+    keep their final-mode score.
+    """
+    item = merged.listing
+    key = find_job_key(conn, merged.aliases) or merged.key
+    row = conn.execute("SELECT * FROM jobs WHERE key = ?", (key,)).fetchone()
+    breakdown_json = json.dumps(breakdown)
+    if row is None:
+        conn.execute(
+            "INSERT INTO jobs (key, title, company, location, url, canonical_url, source, source_id, description,"
+            " score, score_breakdown_json, status, times_seen, first_run, last_run, closed, board)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'matched', 1, ?, ?, 0, ?)",
+            (key, item.title, item.company, item.location, item.url, canonical_url(item.url), item.source,
+             item.source_id, item.description, score, breakdown_json, run_id, run_id, merged.board),
+        )
+        add_aliases(conn, key, merged.aliases)
+        return key, True
+
+    conn.execute("UPDATE jobs SET times_seen = times_seen + 1, last_run = ? WHERE key = ?", (run_id, key))
+    if is_better(item.source, item.description, row["source"] or "", row["description"] or ""):
+        conn.execute(
+            "UPDATE jobs SET title = ?, company = ?, location = ?, url = ?, canonical_url = ?, source = ?,"
+            " source_id = ?, description = ? WHERE key = ?",
+            (item.title, item.company, item.location, item.url, canonical_url(item.url), item.source,
+             item.source_id, item.description, key),
+        )
+    if merged.board and not row["board"]:
+        conn.execute("UPDATE jobs SET board = ? WHERE key = ?", (merged.board, key))
+    if row["status"] in ("seen", "matched"):  # read/tailored jobs keep their final score
+        conn.execute("UPDATE jobs SET score = ?, score_breakdown_json = ? WHERE key = ?", (score, breakdown_json, key))
+        advance_status(conn, key, "matched")
+    add_aliases(conn, key, merged.aliases)
+    return key, False
+
+
+def list_jobs(
+    conn: sqlite3.Connection,
+    *,
+    min_score: int | None = None,
+    new_only: bool = False,
+    hide_closed: bool = False,
+    status: str | None = None,
+    user_status: str | None = None,
+    source: str | None = None,
+    q: str | None = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> list[dict[str, Any]]:
+    """Ranked job rows (best score first) with optional filters."""
+    latest = conn.execute("SELECT MAX(id) AS id FROM runs").fetchone()["id"]
+    where, args = ["1=1"], []
+    if min_score is not None:
+        where.append("score >= ?")
+        args.append(min_score)
+    if new_only:
+        where.append("first_run = ?")
+        args.append(latest)
+    if hide_closed:
+        where.append("closed = 0")
+    if status:
+        where.append("status = ?")
+        args.append(status)
+    if user_status:
+        where.append("user_status = ?")
+        args.append(user_status)
+    if source:
+        where.append("source = ?")
+        args.append(source)
+    if q:
+        where.append("(title LIKE ? ESCAPE '\\' OR company LIKE ? ESCAPE '\\')")
+        pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        args += [pattern, pattern]
+    rows = conn.execute(
+        "SELECT key, title, company, location, url, source, score, times_seen, closed, status, user_status,"
+        f" first_run FROM jobs WHERE {' AND '.join(where)}"
+        " ORDER BY score DESC, last_run DESC, title ASC LIMIT ? OFFSET ?",
+        (*args, limit, offset),
+    ).fetchall()
+    return [
+        {
+            "rank": offset + index, "score": row["score"], "title": row["title"], "company": row["company"],
+            "location": row["location"], "url": row["url"], "source": row["source"],
+            "new": row["first_run"] == latest, "times_seen": row["times_seen"], "closed": bool(row["closed"]),
+            "status": row["status"], "user_status": row["user_status"], "key": row["key"],
+        }
+        for index, row in enumerate(rows, start=1)
+    ]
+
+
+def overview_counts(conn: sqlite3.Connection) -> dict[str, int]:
+    """Funnel counts: found (last scan), matched, read, tailored, known total, new in last run."""
+    run = latest_run(conn)
+    run_id = run["id"] if run else None
+    counts = conn.execute(
+        "SELECT COUNT(*) AS known,"
+        " SUM(status IN ('matched', 'read', 'tailored')) AS matched,"
+        " SUM(status IN ('read', 'tailored')) AS read,"
+        " SUM(status = 'tailored') AS tailored,"
+        " SUM(first_run = ?) AS new FROM jobs",
+        (run_id,),
+    ).fetchone()
+    return {
+        "found": int((run or {}).get("summary", {}).get("found", 0)),
+        "matched": int(counts["matched"] or 0),
+        "read": int(counts["read"] or 0),
+        "tailored": int(counts["tailored"] or 0),
+        "known": int(counts["known"] or 0),
+        "new": int(counts["new"] or 0),
+    }
