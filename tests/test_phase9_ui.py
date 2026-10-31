@@ -11,7 +11,6 @@ import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -20,10 +19,10 @@ import uvicorn
 
 from app import config, db, forge, security, settings
 from app.adapter import export, llm
-from app.adapter.schema import CVStructured, TailoredCV
 from app.main import app
 from app.scout.http import ScoutClient
-from test_phase7 import CV, good_structured
+from fakes import ComboClient
+from test_phase7 import CV
 
 playwright_sync = pytest.importorskip("playwright.sync_api")
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -68,29 +67,6 @@ class Web:
                  "description": "<p>We use Python and PyTorch.</p><script>window.__xss=3</script>", "url": "javascript:window.__xss=4",
                  "date": "2026-10-30T10:00:00+00:00"}])
         return httpx.Response(404, json={})
-
-
-def tailored_from(base: CVStructured) -> TailoredCV:
-    """A faithful rewrite of the built base CV: same facts, bullets reordered."""
-    return TailoredCV(
-        headline="Machine Learning Intern with a focus on NLP", summary=base.summary,
-        experience=[{"company": e.company, "role": e.role, "start": e.start, "bullets": list(reversed(e.bullets))} for e in base.experience])
-
-
-class ComboClient:
-    """Fake Anthropic client: answers the CV build and the tailoring call."""
-
-    def __init__(self) -> None:
-        self.messages = self
-
-    def parse(self, **kwargs: Any) -> Any:
-        schema = kwargs["output_format"]
-        result = good_structured() if schema is CVStructured else tailored_from(good_structured())
-        assert isinstance(result, schema)
-        return SimpleNamespace(parsed_output=result, stop_reason="end_turn", usage=SimpleNamespace(input_tokens=2000, output_tokens=600))
-
-    def count_tokens(self, **kwargs: Any) -> Any:
-        return SimpleNamespace(input_tokens=1800)
 
 
 def free_port() -> int:

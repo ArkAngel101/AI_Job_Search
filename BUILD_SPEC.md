@@ -45,6 +45,14 @@ A local web app that finds US AI/ML, data science, and similar jobs from free so
 29. **Promote is synchronous** (one tailoring at a time, 409 otherwise). An existing tailored CV is reused for free with no confirmation. A failed validation after the one retry is saved with `validation.passed = false` and a warning; the job is still marked tailored.
 30. **Validator extras:** a skill or term reported once; numbers, headline and summary are checked as well as bullets; sentence-initial words are not treated as proper nouns.
 
+### Phase 9-11 findings
+
+31. **UI:** plain HTML/CSS/JS in `app/static/` (no framework, no build). External text is only inserted as text nodes; only `http(s)` links are ever rendered as links (also filtered by the API). `Element.append` is wrapped so `null` or arrays are never printed. A Content Security Policy allows only this app's own scripts and styles, so the headless test polls from Python instead of using string-based waits.
+32. **Agent status:** WORKING while busy (a Find run, a job being read, a CV build or tailoring), LIVE if it acted in the last 15 minutes, otherwise IDLE.
+33. **Settings:** only the keys you change are stored, so everything else keeps following the defaults and your CV's suggestions; "Reset to default" removes a key. Thresholds: the final threshold can never sit below the first cut. The model name is read-only (set `CLAUDE_MODEL` in `.env`). Prices, the monthly cap, and the boards file are saved separately from the profile.
+34. **Hardening found by testing:** `httpx` logs request URLs at INFO and Adzuna's key is in its query string, so those loggers are pinned to WARNING. A test once started a real scan; `tests/conftest.py` now blocks every non-loopback connection and DNS lookup in all tests. `fetch_public_page` validates the first URL before creating any client.
+35. **Audits:** `scripts/api_audit.py` (runs in the test suite too, and checks it covers every API route) and `scripts/security_audit.py` (live container: mounts, ports, flags, secret scan). The test suite also runs on Python 3.12 inside a throwaway container.
+
 ---
 
 ## 0. Overview

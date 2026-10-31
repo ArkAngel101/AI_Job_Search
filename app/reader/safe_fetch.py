@@ -99,10 +99,12 @@ def fetch_public_page(
 ) -> FetchedPage:
     """GET a page following the safety rules. Raises UnsafeURL or PageFetchError."""
     current = url
+    host, path, addresses = validate_url(url, resolver)  # refuse an unsafe URL before anything else is set up
     headers = {"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"}
     with httpx.Client(transport=transport, timeout=TIMEOUT, follow_redirects=False, headers=headers) as client:
         for hop in range(MAX_REDIRECTS + 1):
-            host, path, addresses = validate_url(current, resolver)
+            if hop > 0:
+                host, path, addresses = validate_url(current, resolver)  # every redirect hop is checked again
             response = _get_from_any_address(client, host, path, addresses)
             if response.status_code in REDIRECT_CODES:
                 location = response.headers.get("location")
