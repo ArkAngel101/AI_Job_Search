@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 
 from typing import Annotated, Any, Literal
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import FileResponse, JSONResponse
 
 from app import db, forge
+from app.adapter import cv_builder, extract_text, llm
 from app.reader.add_job import AddJobError, add_job
 from app.scout.boards import SLUG_RE, add_board
 from app.config import STATIC_DIR
@@ -120,3 +122,102 @@ class AddBoardRequest(BaseModel):
 def add_board_endpoint(body: AddBoardRequest) -> dict[str, bool]:
     """Add a company board (offered after a pasted ATS link) to boards.yaml."""
     return {"added": add_board(body.ats, body.slug, body.name)}
+
+
+# --- CV (CV Adapter) ---------------------------------------------------------------------
+
+async def _read_capped(request: Request, limit: int) -> bytes | None:
+    """The request body, or None if it is larger than `limit` bytes."""
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > limit:
+        return None
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+@app.post("/api/cv", response_model=None)
+async def upload_cv(request: Request, filename: Annotated[str, Query(min_length=1, max_length=200)]) -> dict[str, Any] | JSONResponse:
+    """Upload a CV (the raw file as the request body; pdf, docx, md, or txt). Free: no Claude call."""
+    data = await _read_capped(request, extract_text.MAX_UPLOAD_BYTES)
+    if data is None:
+        return JSONResponse({"detail": "The file is larger than 5 MB"}, status_code=413)
+    try:
+        return await run_in_threadpool(cv_builder.prepare_upload, data, filename)
+    except extract_text.UploadError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+
+
+@app.get("/api/cv")
+def cv_status() -> dict[str, Any]:
+    """Building flag, base CV preview, and the pending upload with its detected contact details."""
+    return cv_builder.get_status()
+
+
+def _blocked(exc: cv_builder.BuildBlocked) -> JSONResponse:
+    return JSONResponse({"detail": str(exc)}, status_code=exc.status)
+
+
+@app.get("/api/cv/preview", response_model=None)
+def cv_preview() -> dict[str, Any] | JSONResponse:
+    """Exactly the sanitized text that will be sent to Claude."""
+    try:
+        return cv_builder.preview()
+    except cv_builder.BuildBlocked as exc:
+        return _blocked(exc)
+
+
+@app.get("/api/cv/estimate", response_model=None)
+def cv_estimate() -> dict[str, Any] | JSONResponse:
+    """Estimated tokens and cost of building the base CV."""
+    try:
+        return cv_builder.estimate()
+    except cv_builder.BuildBlocked as exc:
+        return _blocked(exc)
+
+
+class ContactItem(BaseModel):
+    """A contact detail to add."""
+
+    kind: Literal["name", "email", "phone", "address", "linkedin", "github", "url"]
+    value: str = Field(min_length=1, max_length=300)
+
+
+class ContactsRequest(BaseModel):
+    """Owner corrections to the detected contact details."""
+
+    add: list[ContactItem] = Field(default_factory=list, max_length=50)
+    remove: list[str] = Field(default_factory=list, max_length=50)
+    name: str | None = Field(default=None, max_length=200)
+
+
+@app.post("/api/cv/contacts", response_model=None)
+def cv_contacts(body: ContactsRequest) -> dict[str, Any] | JSONResponse:
+    """Add a missed contact detail, remove a wrong one, or set the name."""
+    try:
+        return cv_builder.update_contacts([i.model_dump() for i in body.add], body.remove, body.name)
+    except cv_builder.BuildBlocked as exc:
+        return _blocked(exc)
+
+
+class BuildRequest(BaseModel):
+    """The owner's confirmations before a paid Claude call."""
+
+    confirm_cost: bool = False
+    confirm_contacts: bool = False
+
+
+@app.post("/api/cv/build", status_code=202, response_model=None)
+def cv_build(body: BuildRequest) -> dict[str, bool] | JSONResponse:
+    """Build the base CV with one Claude call (needs both confirmations)."""
+    try:
+        cv_builder.start_build(body.confirm_cost, body.confirm_contacts)
+    except cv_builder.BuildBlocked as exc:
+        return _blocked(exc)
+    except llm.LLMError as exc:  # pragma: no cover - raised only by synchronous callers
+        return JSONResponse({"detail": str(exc)}, status_code=422)
+    return {"started": True}

@@ -1,0 +1,28 @@
+Jane Q. Doe
+Boston, MA 02115 | (617) 555-0123 | jane.doe@example.com
+linkedin.com/in/janedoe | github.com/janedoe | janedoe.dev
+
+SUMMARY
+Recent graduate with hands-on machine learning internships and a focus on NLP.
+
+EXPERIENCE
+Acme Corp - Machine Learning Intern, Boston, MA                      Jun 2025 - Aug 2025
+- Built a PyTorch text classifier that improved F1 by 12% over the baseline
+- Deployed the model with Docker on AWS
+
+Beta Labs - Data Analyst Intern, New York, NY                        Jun 2024 - Aug 2024
+- Wrote SQL reports for a team of 8 analysts
+- Automated weekly dashboards with Python and pandas
+
+EDUCATION
+Northeastern University, B.S. Computer Science, Boston, MA          2022 - 2026
+GPA 3.8. Relevant coursework: Machine Learning, Algorithms, Databases
+
+SKILLS
+Languages: Python, SQL, Java
+Frameworks: PyTorch, scikit-learn, ASP.NET, Node.js
+
+PROJECTS
+Resume Matcher - ranks resumes against job posts, see https://github.com/janedoe/matcher
+
+Contact Jane Doe at jane.doe@example.com or 617.555.0123 - 12 Main Street, Apt 4, Cambridge, MA 02139

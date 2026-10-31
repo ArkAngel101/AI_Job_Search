@@ -1,7 +1,6 @@
 """Phase 6: Job Reader (no LLM), pasted URLs and text, and safe page fetching."""
 import json
 import sqlite3
-import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -331,10 +330,17 @@ def test_unknown_key_raises(env: Web) -> None:
         reader.read_job("nope")
 
 
-def test_no_llm_is_called_or_imported(env: Web) -> None:
+def test_no_llm_is_called(env: Web, monkeypatch: pytest.MonkeyPatch) -> None:
+    import anthropic
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("an Anthropic client was created by Job Reader")
+
+    monkeypatch.setattr(anthropic, "Anthropic", forbidden)
     reader.read_job(store("greenhouse", fx("jd_sample.txt")))
     add_job(text="Machine Learning Engineer\n" + "We are hiring. " * 10)
-    assert "anthropic" not in sys.modules and not [m for m in sys.modules if m.startswith("app.adapter.")]
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM llm_usage").fetchone()[0] == 0
 
 
 # --- add by text ------------------------------------------------------------------------------------

@@ -467,3 +467,31 @@ def save_jd(conn: sqlite3.Connection, key: str, jd: dict[str, Any], score: int, 
         (json.dumps(jd), score, json.dumps(breakdown), key),
     )
     advance_status(conn, key, "read")
+
+
+# --- LLM usage and CV versions -------------------------------------------------
+
+def record_llm_usage(
+    conn: sqlite3.Connection, job_key: str | None, model: str, input_tokens: int, output_tokens: int, cost_usd: float
+) -> None:
+    """Log one Claude call's token usage and estimated cost."""
+    conn.execute(
+        "INSERT INTO llm_usage (ts, job_key, model, input_tokens, output_tokens, est_cost_usd) VALUES (?, ?, ?, ?, ?, ?)",
+        (now_iso(), job_key, model, input_tokens, output_tokens, cost_usd),
+    )
+
+
+def month_spend(conn: sqlite3.Connection) -> float:
+    """Estimated Claude spend so far this calendar month (UTC)."""
+    start = datetime.now(UTC).strftime("%Y-%m-01")
+    row = conn.execute("SELECT COALESCE(SUM(est_cost_usd), 0) AS total FROM llm_usage WHERE ts >= ?", (start,)).fetchone()
+    return float(row["total"])
+
+
+def insert_cv_version(conn: sqlite3.Connection, raw_filename: str, base_cv_json: str | None, valid: bool) -> int:
+    """Record a CV build attempt (valid=0 rows keep a failed build visible without replacing the base CV)."""
+    cur = conn.execute(
+        "INSERT INTO cv_versions (created_at, raw_filename, base_cv_json, valid) VALUES (?, ?, ?, ?)",
+        (now_iso(), raw_filename, base_cv_json, int(valid)),
+    )
+    return int(cur.lastrowid or 0)

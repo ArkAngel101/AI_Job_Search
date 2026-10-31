@@ -39,10 +39,21 @@ class Profile(BaseModel):
 
 
 def load_profile() -> Profile:
-    """Defaults overlaid with whatever the owner saved in Settings (falls back to defaults if invalid)."""
+    """Defaults, extended by CV suggestions, overlaid with whatever the owner saved in Settings.
+
+    CV suggestions only apply to settings the owner has not changed, so edits are never overwritten.
+    Falls back to the defaults if the saved values are invalid.
+    """
     with db.connect() as conn:
         stored = db.get_setting(conn, "profile", {})
+        suggestions = db.get_setting(conn, "cv_suggestions", {})
+    merged = Profile().model_dump()
+    for key in ("titles", "keywords", "scoring_skills"):
+        if key not in stored and suggestions.get(key):
+            merged[key] = list(dict.fromkeys([*merged[key], *suggestions[key]]))
+    if "seniority" not in stored and suggestions.get("seniority"):
+        merged["seniority"] = suggestions["seniority"]
     try:
-        return Profile.model_validate({**Profile().model_dump(), **stored})
+        return Profile.model_validate({**merged, **stored})
     except ValidationError:
         return Profile()

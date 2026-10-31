@@ -1,6 +1,5 @@
 """Phase 5: the Find run (Forge), job memory, and the run/jobs/overview endpoints."""
 import json
-import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
@@ -113,11 +112,19 @@ def test_source_failure_is_noted_without_stopping_the_run(web: Web) -> None:
     assert set(jobs_by_title()) == {"Machine Learning Engineer, New Grad", "Data Scientist, Intern"}
 
 
-def test_no_llm_is_called_or_imported(web: Web) -> None:
+def test_no_llm_is_called(web: Web, monkeypatch: pytest.MonkeyPatch) -> None:
+    import anthropic
+
+    def forbidden(*args: object, **kwargs: object) -> None:
+        raise AssertionError("an Anthropic client was created during a Find run")
+
+    monkeypatch.setattr(anthropic, "Anthropic", forbidden)
+    monkeypatch.setattr(anthropic, "AsyncAnthropic", forbidden)
     run_once()
-    assert "anthropic" not in sys.modules
-    assert not [m for m in sys.modules if m.startswith("app.adapter.")]
     assert not [r for r in web.requests if "anthropic" in r.url.host]
+    with db.connect() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM llm_usage").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM activity_log WHERE agent_name = 'cv-adapter'").fetchone()[0] == 0
 
 
 # --- closed and reopened ---------------------------------------------------------
