@@ -47,8 +47,19 @@ CREATE TABLE IF NOT EXISTS jobs (
     last_run INTEGER,
     closed INTEGER NOT NULL DEFAULT 0,
     jd_json TEXT,
-    cv_path TEXT
+    cv_path TEXT,
+    board TEXT
 );
+
+-- Every identity a job has been seen under (id, canonical url, fuzzy key), so later
+-- sightings from other sources still match the same row.
+CREATE TABLE IF NOT EXISTS job_aliases (
+    alias_type TEXT NOT NULL CHECK (alias_type IN ('id', 'url', 'fuzzy')),
+    alias_value TEXT NOT NULL,
+    key TEXT NOT NULL,
+    PRIMARY KEY (alias_type, alias_value)
+);
+CREATE INDEX IF NOT EXISTS idx_job_aliases_key ON job_aliases (key);
 
 -- Backstop: any write path that tries to move status backwards is reverted.
 CREATE TRIGGER IF NOT EXISTS jobs_status_forward_only
@@ -144,6 +155,15 @@ def init_db() -> None:
     with connect() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Bring databases created by earlier phases up to date."""
+    job_columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+    if "board" not in job_columns:  # added in Phase 3
+        conn.execute("ALTER TABLE jobs ADD COLUMN board TEXT")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_board ON jobs (board)")
 
 
 def advance_status(conn: sqlite3.Connection, key: str, new_status: str) -> str | None:
@@ -158,6 +178,56 @@ def advance_status(conn: sqlite3.Connection, key: str, new_status: str) -> str |
         conn.execute("UPDATE jobs SET status = ? WHERE key = ?", (new_status, key))
         return new_status
     return current
+
+
+def find_job_key(conn: sqlite3.Connection, aliases: list[tuple[str, str]]) -> str | None:
+    """Key of the stored job matching any alias, checking id, then url, then fuzzy (strongest first)."""
+    for kind in ("id", "url", "fuzzy"):
+        for alias_kind, value in aliases:
+            if alias_kind != kind:
+                continue
+            row = conn.execute(
+                "SELECT key FROM job_aliases WHERE alias_type = ? AND alias_value = ?", (kind, value)
+            ).fetchone()
+            if row is not None:
+                return row["key"]
+    return None
+
+
+def add_aliases(conn: sqlite3.Connection, key: str, aliases: list[tuple[str, str]]) -> None:
+    """Record aliases for a job. An alias already owned by another job keeps its owner."""
+    conn.executemany(
+        "INSERT OR IGNORE INTO job_aliases (alias_type, alias_value, key) VALUES (?, ?, ?)",
+        [(kind, value, key) for kind, value in aliases],
+    )
+
+
+def sources_seen(conn: sqlite3.Connection, key: str) -> list[str]:
+    """Every source name this job has been listed under."""
+    rows = conn.execute(
+        "SELECT alias_value FROM job_aliases WHERE key = ? AND alias_type = 'id' ORDER BY alias_value", (key,)
+    )
+    return sorted({row["alias_value"].split(":", 1)[0] for row in rows})
+
+
+def sync_closed(conn: sqlite3.Connection, completed_boards: set[str], seen_keys: set[str]) -> tuple[int, int]:
+    """Mark jobs closed or reopened after a scan; return (newly closed, reopened).
+
+    Only boards fetched successfully and completely may close jobs, so a failed or partial
+    fetch never closes anything. Any job seen again this scan is reopened.
+    """
+    closed = 0
+    for board in completed_boards:
+        gone = [
+            row["key"]
+            for row in conn.execute("SELECT key FROM jobs WHERE board = ? AND closed = 0", (board,))
+            if row["key"] not in seen_keys
+        ]
+        conn.executemany("UPDATE jobs SET closed = 1 WHERE key = ?", [(key,) for key in gone])
+        closed += len(gone)
+    reopen = [row["key"] for row in conn.execute("SELECT key FROM jobs WHERE closed = 1") if row["key"] in seen_keys]
+    conn.executemany("UPDATE jobs SET closed = 0 WHERE key = ?", [(key,) for key in reopen])
+    return closed, len(reopen)
 
 
 def log_activity(agent: str, description: str, status: str, model: str = "none") -> str:

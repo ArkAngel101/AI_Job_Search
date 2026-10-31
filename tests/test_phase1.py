@@ -55,6 +55,7 @@ def test_jobs_columns_match_spec(data_dir: Path) -> None:
         "key", "title", "company", "location", "url", "canonical_url", "source", "source_id",
         "description", "score", "score_breakdown_json", "status", "user_status", "times_seen",
         "first_run", "last_run", "closed", "jd_json", "cv_path",
+        "board",  # added in Phase 3
     ]
 
 
