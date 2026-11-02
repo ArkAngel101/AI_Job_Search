@@ -259,6 +259,19 @@ def log_activity(agent: str, description: str, status: str, model: str = "none")
 
 # --- settings ----------------------------------------------------------------
 
+def scrub_secret_urls(conn: sqlite3.Connection, secrets: list[str]) -> int:
+    """Remove secret values from stored job links (older scans stored Adzuna's app id in them). Returns rows fixed."""
+    from app.scout.text import scrub_url
+
+    usable = [s for s in secrets if len(s) >= 6]
+    fixed = 0
+    for row in conn.execute("SELECT key, url FROM jobs WHERE url IS NOT NULL").fetchall():
+        if any(secret in row["url"] for secret in usable):
+            conn.execute("UPDATE jobs SET url = ? WHERE key = ?", (scrub_url(row["url"], usable), row["key"]))
+            fixed += 1
+    return fixed
+
+
 def get_setting(conn: sqlite3.Connection, key: str, default: Any = None) -> Any:
     """Read a JSON setting."""
     row = conn.execute("SELECT value_json FROM settings WHERE key = ?", (key,)).fetchone()

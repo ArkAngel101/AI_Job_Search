@@ -210,6 +210,8 @@ def test_adzuna_pages_and_relevance_requests(monkeypatch: pytest.MonkeyPatch, fa
     job = listings[0]
     assert (job.company, job.location, job.salary_min, job.contract_type) == ("Acme", "Boston, Massachusetts", 110000.0, "permanent")
     assert job.description == "Train models & ship them..." and notes == []
+    assert job.url == "https://www.adzuna.com/land/ad/9001?se=x&utm_medium=api&v=ABC"  # the app id (utm_source) is removed
+    assert "id123" not in " ".join(item.url for item in listings)
 
 
 def test_adzuna_drops_trailing_words_until_results(monkeypatch: pytest.MonkeyPatch, fake_time: FakeTime) -> None:

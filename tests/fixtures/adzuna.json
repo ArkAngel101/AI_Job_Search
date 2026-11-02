@@ -20,7 +20,7 @@
         ]
       },
       "description": "Train models &amp; ship them...",
-      "redirect_url": "https://www.adzuna.com/land/ad/9001?se=x",
+      "redirect_url": "https://www.adzuna.com/land/ad/9001?se=x&utm_medium=api&utm_source=id123&v=ABC",
       "created": "2026-10-28T08:00:00Z",
       "salary_min": 110000,
       "salary_max": 140000,

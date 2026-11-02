@@ -187,7 +187,10 @@ def secured(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestCli
         name = files.get(request.url.host)
         if name == "adzuna.json" and request.url.params.get("sort_by") == "boom":
             return httpx.Response(500)
-        return httpx.Response(200, json=json.loads((FIXTURES / name).read_text())) if name else httpx.Response(404, json={})
+        if not name:
+            return httpx.Response(404, json={})
+        text = (FIXTURES / name).read_text().replace("utm_source=id123", f"utm_source={SECRETS['ADZUNA_APP_ID']}")  # Adzuna adds the app id to links
+        return httpx.Response(200, json=json.loads(text))
 
     from app.scout.http import ScoutClient
 
@@ -310,3 +313,31 @@ def test_the_test_suite_itself_cannot_reach_the_internet() -> None:
         socket.create_connection(("93.184.216.34", 80), timeout=1)
     with pytest.raises(RuntimeError, match="must not use the network"):
         socket.getaddrinfo("example.com", 443)
+
+
+# --- secrets that providers put into the data they return --------------------------------------------------------
+
+def test_scrub_url_removes_only_the_parameters_that_carry_a_secret() -> None:
+    from app.scout.text import scrub_url
+
+    secret = "adzuna-id-1234"
+    url = f"https://www.adzuna.com/land/ad/1?se=x&utm_source={secret}&v=2#frag"
+    assert scrub_url(url, [secret, ""]) == "https://www.adzuna.com/land/ad/1?se=x&v=2#frag"
+    assert scrub_url("https://example.com/a?b=c", [secret]) == "https://example.com/a?b=c"
+    assert scrub_url("", [secret]) == ""
+    assert scrub_url(f"https://example.com/{secret}/page", [secret]) == ""  # a secret in the path cannot be removed: drop the link
+
+
+def test_secret_values_in_already_stored_links_are_cleaned_at_startup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setenv("ADZUNA_APP_ID", SECRETS["ADZUNA_APP_ID"])
+    monkeypatch.delenv("ADZUNA_APP_KEY", raising=False)
+    db.init_db()
+    with db.connect() as conn:
+        conn.execute("INSERT INTO jobs (key, title, url) VALUES ('a', 't', ?)", (f"https://adzuna.example/1?utm_source={SECRETS['ADZUNA_APP_ID']}&x=1",))
+        conn.execute("INSERT INTO jobs (key, title, url) VALUES ('b', 't', 'https://other.example/2?x=1')")
+    with TestClient(app, base_url="http://127.0.0.1:8000") as client:
+        rows = {r["key"]: r["url"] for r in client.get("/api/jobs").json()}
+    assert rows == {"a": "https://adzuna.example/1?x=1", "b": "https://other.example/2?x=1"}
+    with db.connect() as conn:
+        assert SECRETS["ADZUNA_APP_ID"] not in json.dumps([dict(r) for r in conn.execute("SELECT * FROM jobs")])

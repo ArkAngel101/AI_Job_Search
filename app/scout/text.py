@@ -1,6 +1,7 @@
 """Text helpers: HTML to plain text, number and date cleanup."""
 import re
 from datetime import UTC, datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from bs4 import BeautifulSoup
 
@@ -47,3 +48,14 @@ def join_location(*parts: str | None, remote: bool = False) -> str:
     if remote and not any("remote" in p.lower() for p in items):
         items.append("Remote")
     return ", ".join(items)
+
+
+def scrub_url(url: str, secrets: list[str]) -> str:
+    """Drop any query parameter whose value contains a secret (Adzuna adds the app id to its links)."""
+    secrets = [s for s in secrets if s]
+    if not url or not any(s in url for s in secrets):
+        return url
+    parts = urlsplit(url)
+    kept = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if not any(s in v or s in k for s in secrets)]
+    cleaned = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(kept), parts.fragment))
+    return cleaned if not any(s in cleaned for s in secrets) else ""  # never keep a link that still carries one

@@ -8,7 +8,7 @@ from app.profile import Profile
 from app.scout.boards import Board
 from app.scout.http import FetchError, ScoutClient, get_json
 from app.scout.models import Notes, RawListing
-from app.scout.text import positive_number, strip_html
+from app.scout.text import positive_number, scrub_url, strip_html
 
 NAME = "adzuna"
 REQUIRES_ENV = ("ADZUNA_APP_ID", "ADZUNA_APP_KEY")  # a free key from developer.adzuna.com
@@ -31,7 +31,7 @@ def _to_listing(item: dict) -> RawListing:
         company=(item.get("company") or {}).get("display_name") or "",
         location=(item.get("location") or {}).get("display_name") or "",
         description=strip_html(item.get("description")),  # Adzuna returns only a snippet
-        url=item["redirect_url"],
+        url=scrub_url(item["redirect_url"], [os.environ.get(name, "").strip() for name in REQUIRES_ENV]),
         created=item.get("created"),
         salary_min=positive_number(item.get("salary_min")),
         salary_max=positive_number(item.get("salary_max")),

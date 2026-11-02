@@ -2,6 +2,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import os
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
@@ -28,6 +29,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     db.init_db()
     with db.connect() as conn:
         db.fail_stale_runs(conn)
+        db.scrub_secret_urls(conn, [os.environ.get(name, "").strip() for name in ("ADZUNA_APP_ID", "ADZUNA_APP_KEY")])
     yield
 
 
