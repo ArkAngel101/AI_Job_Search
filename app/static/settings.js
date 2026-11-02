@@ -1,5 +1,5 @@
 "use strict";
-/* Settings: profile and targeting, search, scoring, sources, boards.yaml, Claude, system status. */
+/* Settings: profile and targeting, search, scoring, sources, boards.yaml, AI model, system status. */
 
 (() => {
   const SENIORITY = ["entry", "mid", "senior", "lead", "principal", "manager", "any"];
@@ -237,16 +237,16 @@
     const bind = (key, id, label, placeholder) => h("input", { type: "number", id, min: "0", step: "any", value: draft[key], placeholder, "aria-label": label,
       disabled: draft.cost_disabled,
       oninput: (e) => { draft[key] = e.target.value; refreshBar(); } });
-    return h("div", { class: "card" }, h("h2", {}, "Claude"),
-      field("Model", c.model_from_env ? "Set by CLAUDE_MODEL in .env." : "The default. Set CLAUDE_MODEL in .env to change it.", h("code", { id: "claude-model" }, c.model)),
-      field("API key", "Set ANTHROPIC_API_KEY in .env. It is never shown here.", h("span", { class: `pill ${c.key_set ? "good" : "warn"}`, id: "claude-key" }, c.key_set ? "key set" : "key not set")),
+    return h("div", { class: "card" }, h("h2", {}, "AI model (Groq)"),
+      field("Model", c.model_from_env ? "Set by GROQ_MODEL in .env." : "The default. Set GROQ_MODEL in .env to change it.", h("code", { id: "claude-model" }, c.model)),
+      field("API key", "Set GROQ_API_KEY in .env. It is never shown here.", h("span", { class: `pill ${c.key_set ? "good" : "warn"}`, id: "claude-key" }, c.key_set ? "key set" : "key not set")),
       field("Cost limits", "Tick this if you have no per-token cost limit (for example a plan without one). Cost estimates and the spend cap are switched off; the values below are kept and come back when you untick it.",
         h("label", { class: "check" }, h("input", { type: "checkbox", id: "cost-disabled", checked: draft.cost_disabled,
           onchange: (e) => { draft.cost_disabled = e.target.checked; render(); } }), "Not applicable: disable cost tracking and the cap")),
       h("div", { class: "row", style: { alignItems: "flex-start", gap: "16px" } },
         field("Input price ($ per million tokens)", null, bind("prices_in", "price-in", "Input price", "e.g. 2.00")),
         field("Output price ($ per million tokens)", null, bind("prices_out", "price-out", "Output price", "e.g. 10.00"))),
-      h("div", { class: "hint faint small", style: { margin: "-6px 0 12px" } }, "Copy these from the Anthropic Console. They are used for cost estimates and the cap."),
+      h("div", { class: "hint faint small", style: { margin: "-6px 0 12px" } }, "Copy these from Groq's pricing page (see Groq console). They are used for cost estimates and the cap."),
       field("Monthly spend cap ($)", "Hard stop: a paid call that would pass the cap is refused. Leave empty for no cap. Needs prices above.", bind("cap", "monthly-cap", "Monthly cap", "no cap")),
       h("div", { class: "kv row", style: { justifyContent: "space-between" } }, h("span", { class: "muted" }, "Spent this month"),
         h("strong", { id: "spent" }, `$${Number(c.spent_this_month_usd).toFixed(2)}`)));

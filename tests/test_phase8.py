@@ -82,7 +82,8 @@ class FakeClient:
 @pytest.fixture()
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, Any]]:
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", SECRET_KEY)
+    monkeypatch.setenv("GROQ_API_KEY", SECRET_KEY)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
     monkeypatch.delenv("CLAUDE_MODEL", raising=False)
     db.init_db()
     fake = FakeClient()
@@ -248,8 +249,8 @@ def test_promote_produces_a_validated_tailored_cv(env: dict[str, Any]) -> None:
         usage = conn.execute("SELECT job_key, model, input_tokens FROM llm_usage").fetchone()
         log = [tuple(r) for r in conn.execute("SELECT agent_name, status, model_used FROM activity_log ORDER BY created_at")]
     assert stored is not None and stored["validation"]["passed"] is True and stored["docx_path"] and stored["pdf_path"]
-    assert tuple(usage) == (key, "claude-sonnet-5-5", 2000)
-    assert ("job-reader", "completed", "none") in log and ("cv-adapter", "completed", "claude-sonnet-5-5") in log
+    assert tuple(usage) == (key, "openai/gpt-oss-120b", 2000)
+    assert ("job-reader", "completed", "none") in log and ("cv-adapter", "completed", "openai/gpt-oss-120b") in log
     assert len(fake.parse_calls) == 1
 
 
@@ -325,7 +326,7 @@ def test_name_and_contact_details_never_reach_the_tailoring_call(env: dict[str, 
     for real in ("Jane Q. Doe", "Jane", "jane.doe@example.com", "617", "555-0123", "janedoe", "02115"):
         assert real.lower() not in sent.lower(), real
     assert "<job>" in sent and "<cv>" in sent and "Kubernetes" in sent  # the posting and the CV content are sent
-    assert call["output_format"] is TailoredCV and call["output_config"] == {"effort": "medium"}
+    assert call["output_format"] is TailoredCV and "output_config" not in call
     assert not {"temperature", "tools", "tool_choice"} & set(call)
 
 
@@ -348,7 +349,7 @@ def test_estimate_shows_tokens_cost_and_worst_case(env: dict[str, Any]) -> None:
     with db.connect() as conn:
         db.set_setting(conn, "claude_prices", {"input_per_mtok": 3.0, "output_per_mtok": 15.0})
     shown = cv_tailor.estimate(env["key"])
-    assert shown["reused"] is False and shown["input_tokens"] == 1800 and shown["basis"] == "counted"
+    assert shown["reused"] is False and shown["input_tokens"] > 500 and shown["basis"] == "approximate"
     assert shown["max_cost_usd"] == pytest.approx(shown["cost_usd"] * 2) and shown["cost_usd"] > 0
     assert env["fake"].parse_calls == []  # estimating never calls the model
 
@@ -448,7 +449,7 @@ def client(env: dict[str, Any]) -> Iterator[TestClient]:
 def test_promote_endpoints_end_to_end(client: TestClient, env: dict[str, Any]) -> None:
     key = env["key"]
     estimate = client.get("/api/promote/estimate", params={"key": key}).json()
-    assert estimate["reused"] is False and estimate["input_tokens"] == 1800
+    assert estimate["reused"] is False and estimate["input_tokens"] > 500
 
     unconfirmed = client.post("/api/promote", json={"key": key}, headers=HEADERS)
     assert unconfirmed.status_code == 400 and "Confirm" in unconfirmed.json()["detail"]
@@ -474,12 +475,12 @@ def test_promote_endpoint_errors(client: TestClient, env: dict[str, Any]) -> Non
 
 def test_missing_key_and_cap_map_to_422_and_api_failures_to_502(client: TestClient, env: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
     def no_key() -> None:
-        raise llm.NotConfigured("ANTHROPIC_API_KEY is not set. Add it to .env and restart.")
+        raise llm.NotConfigured("GROQ_API_KEY is not set. Add it to .env and restart.")
 
     monkeypatch.setattr(llm, "get_client", no_key)
     # estimating falls back to an approximation, but the paid call needs the key
     resp = client.post("/api/promote", json={"key": env["key"], "confirm_cost": True}, headers=HEADERS)
-    assert resp.status_code == 422 and "ANTHROPIC_API_KEY" in resp.json()["detail"]
+    assert resp.status_code == 422 and "GROQ_API_KEY" in resp.json()["detail"]
 
     def down() -> None:
         raise llm.LLMError("Could not reach the Anthropic API.")

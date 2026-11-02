@@ -56,7 +56,7 @@ class SuggestedProfile(BaseModel):
 
 
 class CVStructured(BaseModel):
-    """What Claude returns for a sanitized CV (contact details are not part of it)."""
+    """What the model returns for a sanitized CV (contact details are not part of it)."""
 
     name: str
     headline: str
@@ -71,7 +71,7 @@ class CVStructured(BaseModel):
 
 
 class Contact(BaseModel):
-    """Contact details, re-attached by code (never sent to Claude)."""
+    """Contact details, re-attached by code (never sent to the model)."""
 
     emails: list[str] = Field(default_factory=list)
     phones: list[str] = Field(default_factory=list)
@@ -114,7 +114,7 @@ class TailoredRole(BaseModel):
 
 
 class TailoredCV(BaseModel):
-    """What Claude may rewrite: the headline, the summary, and each position's bullets. Nothing else."""
+    """What the model may rewrite: the headline, the summary, and each position's bullets. Nothing else."""
 
     headline: str
     summary: str

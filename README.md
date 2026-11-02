@@ -13,38 +13,39 @@ You need **Podman** (rootless) on Linux, and these accounts:
 
 | Account | Needed for | Notes |
 |---|---|---|
-| **Anthropic API key** | Building your base CV and tailoring it | Create it in the [Anthropic Console](https://console.anthropic.com/) and **set a spend limit there**. This is the only thing that costs money. |
+| **Groq API key** | Building your base CV and tailoring it | Create it in the [Groq console](https://console.groq.com/). This is the only AI service the app uses. |
 | **Adzuna API key** (free) | Broad US job search | Register at [developer.adzuna.com](https://developer.adzuna.com/) for an app id and key. Without it, Adzuna is skipped. |
 | RapidAPI key (optional) | JSearch | JSearch is **not built** (its docs could not be verified), so `RAPIDAPI_KEY` is unused for now. |
 
 All other sources (Greenhouse, Lever, Ashby, Workable, Remotive, RemoteOK, The Muse, Jobicy) need no account.
 
 ```bash
-cp .env.example .env        # then fill in ANTHROPIC_API_KEY, ADZUNA_APP_ID, ADZUNA_APP_KEY
+cp .env.example .env        # then fill in GROQ_API_KEY, ADZUNA_APP_ID, ADZUNA_APP_KEY
 ./run.sh                    # builds the image and starts the container
 ```
 
 Open **http://127.0.0.1:8000**. Other commands: `./run.sh stop`, `./run.sh logs`, `./run.sh build`.
-`CLAUDE_MODEL` in `.env` picks the model (default `claude-sonnet-5-5`; for example `claude-haiku-5-5` is cheaper).
+`GROQ_MODEL` in `.env` picks the model (default `openai/gpt-oss-120b`; it must support Groq's strict JSON-schema output, which today also includes `openai/gpt-oss-20b`). An old `CLAUDE_MODEL` line holding a Claude name is ignored.
 
 ## First use
 
-1. **Settings → Claude:** copy the per-million-token prices from the Anthropic Console (needed for cost
-   estimates) and set a **monthly spend cap**. The cap is a hard stop.
+1. **Settings → AI model:** enter the per-million-token prices from Groq's pricing page (needed for cost
+   estimates) and optionally a **monthly spend cap** (a hard stop). If you have no cost limit, tick
+   *Not applicable* to switch estimates and the cap off; the values are kept.
 2. **CV:** drop your CV (PDF, DOCX, Markdown or text). Check the detected contact details, press
-   *Preview sanitized text* to see exactly what will be sent, press *Estimate cost*, tick both confirmations,
-   and build. This is one Claude call.
+   *Preview sanitized text* to see exactly what will be sent, press *Estimate cost* (an approximation: Groq has no token counter), tick both confirmations,
+   and build. This is one AI call.
 3. **Jobs → Scan now:** fetches every enabled source (free, no AI), de-duplicates, scores, and ranks.
    You can also paste a job link or the job text.
-4. **Tailor** a job you like: you see the estimated cost first. Claude may only reword your headline,
+4. **Tailor** a job you like: you see the estimated cost first. The AI model may only reword your headline,
    summary and bullets; code then checks the result against your base CV. Download it as `.docx` or `.pdf`.
 
 ## Privacy
 
-- **What is sent to Anthropic:** when you build your base CV, your CV text **with your name, email, phone,
+- **What is sent to Groq:** when you build your base CV, your CV text **with your name, email, phone,
   links and street address replaced by tokens** such as `[NAME]` and `[EMAIL]`. The CV page shows the exact
   text first. When you tailor, it sends the job description plus your CV's facts (again without name or
-  contact details). The real details are put back by this app afterwards. Nothing else goes to Anthropic.
+  contact details). The real details are put back by this app afterwards. Nothing else goes to Groq. Check Groq's data-handling terms, which differ from Anthropic's.
 - A bare "City, ST" (for example "Boston, MA") is not hidden, so employer locations survive. Add it as a
   detected detail on the CV page if you want it hidden.
 - **Job sources** receive only the searches and board requests needed to list jobs. Pasted links are fetched
@@ -75,7 +76,7 @@ Open **http://127.0.0.1:8000**. Other commands: `./run.sh stop`, `./run.sh logs`
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
-.venv/bin/python -m pytest -q                       # ~550 tests; no network, no real Claude calls
+.venv/bin/python -m pytest -q                       # ~570 tests; no network, no real AI calls
 .venv/bin/python scripts/api_audit.py               # every endpoint against the running container
 .venv/bin/python scripts/security_audit.py          # mounts, ports, hardening flags, secret scan
 podman exec forge python -m app.scout.manual_scan   # a live check of every source (see docs/MANUAL_SCAN.md)
@@ -87,6 +88,6 @@ Python 3.12, the version the container uses.
 ## Layout
 
 `app/` the FastAPI app (`forge.py` orchestrator, `scout/` sources, dedup and scoring, `reader/` job reader,
-`adapter/` CV builder, tailor, validator and export, `static/` the page) · `prompts/` the two Claude prompts ·
+`adapter/` CV builder, tailor, validator and export, `static/` the page) · `prompts/` the two AI prompts ·
 `boards.yaml`, `skills.yaml` shipped defaults · `scripts/` audits · `tests/` · `BUILD_SPEC.md` the plan and
 every decision made along the way · `CLAUDE.md` the project rules.

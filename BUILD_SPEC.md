@@ -53,6 +53,12 @@ A local web app that finds US AI/ML, data science, and similar jobs from free so
 34. **Hardening found by testing:** `httpx` logs request URLs at INFO and Adzuna's key is in its query string, so those loggers are pinned to WARNING. A test once started a real scan; `tests/conftest.py` now blocks every non-loopback connection and DNS lookup in all tests. `fetch_public_page` validates the first URL before creating any client.
 35. **Audits:** `scripts/api_audit.py` (runs in the test suite too, and checks it covers every API route) and `scripts/security_audit.py` (live container: mounts, ports, flags, secret scan). The test suite also runs on Python 3.12 inside a throwaway container.
 
+### Provider switch (2026-11-02)
+
+36. **The model provider is Groq, not Anthropic** (owner's request; `CLAUDE.md` amended). `app/adapter/llm.py` is still the only module that calls an LLM. It posts to `https://api.groq.com/openai/v1/chat/completions` with plain `httpx` (the `anthropic` package was removed), using `response_format: json_schema` with `strict: true`. Strict mode needs every property required and `additionalProperties: false`, which `strict_schema()` produces from the pydantic models. Default model `openai/gpt-oss-120b` (the docs list strict support for it and `openai/gpt-oss-20b`). Env: `GROQ_API_KEY`, `GROQ_MODEL`; a leftover `CLAUDE_MODEL` is honoured only if it is not a Claude name.
+37. **Estimates are approximate** (characters / 3.5): Groq documents no token-counting endpoint. Prices and the cap are still entered by the owner in Settings. The settings payload keeps the name `claude` internally so saved settings still load.
+38. **Not verified:** the request format was checked with one live call (structured answer, usage fields, `max_completion_tokens`). Groq's error JSON shape and `x-request-id` header are assumed from OpenAI compatibility; errors show only status, type and request id.
+
 ---
 
 ## 0. Overview

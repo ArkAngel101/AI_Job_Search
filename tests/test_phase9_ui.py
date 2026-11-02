@@ -80,7 +80,7 @@ def live(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, Any]]:
     mp = pytest.MonkeyPatch()
     port = free_port()
     mp.setattr(config, "DATA_DIR", tmp_path_factory.mktemp("data"))
-    mp.setenv("ANTHROPIC_API_KEY", "sk-ant-UITEST")
+    mp.setenv("GROQ_API_KEY", "gsk-UITEST")
     host = f"127.0.0.1:{port}"
     mp.setattr(security, "ALLOWED_HOSTS", {host})
     mp.setattr(security, "ALLOWED_ORIGINS", {f"http://{host}"})
@@ -284,7 +284,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     row.query_selector("button:has-text('Tailor')").click()
     page.wait_for_selector("#confirm-tailor")
     dialog_text = page.inner_text(".modal")
-    assert "Estimated cost: $" in dialog_text and "Claude rewrites only your headline" in dialog_text
+    assert "Estimated cost: $" in dialog_text and "The AI model rewrites only your headline" in dialog_text
     page.click("#confirm-tailor")
     page.wait_for_selector(".modal.wide .cv-preview", timeout=20000)
     assert "Passed validation" in page.inner_text(".modal.wide") and "Jane Q. Doe" in page.inner_text(".modal.wide")
@@ -319,7 +319,7 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     page.click("#nav a[data-page=settings]")
     page.wait_for_selector("#save-bar #save-btn")
     assert page.is_disabled("#save-btn") and "All changes saved" in page.inner_text("#save-bar")
-    assert page.inner_text("#claude-model") == "claude-sonnet-5-5" and page.inner_text("#claude-key") == "key set"
+    assert page.inner_text("#claude-model") == "openai/gpt-oss-120b" and page.inner_text("#claude-key") == "key set"
     assert "key not set" in page.inner_text("[data-key=adzuna]")  # status only: the key itself is never shown
     assert "UITEST" not in page.content()
     shot("settings")

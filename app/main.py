@@ -159,7 +159,7 @@ async def _read_capped(request: Request, limit: int) -> bytes | None:
 
 @app.post("/api/cv", response_model=None)
 async def upload_cv(request: Request, filename: Annotated[str, Query(min_length=1, max_length=200)]) -> dict[str, Any] | JSONResponse:
-    """Upload a CV (the raw file as the request body; pdf, docx, md, or txt). Free: no Claude call."""
+    """Upload a CV (the raw file as the request body; pdf, docx, md, or txt). Free: no AI call."""
     data = await _read_capped(request, extract_text.MAX_UPLOAD_BYTES)
     if data is None:
         return JSONResponse({"detail": "The file is larger than 5 MB"}, status_code=413)
@@ -181,7 +181,7 @@ def _blocked(exc: cv_builder.BuildBlocked) -> JSONResponse:
 
 @app.get("/api/cv/preview", response_model=None)
 def cv_preview() -> dict[str, Any] | JSONResponse:
-    """Exactly the sanitized text that will be sent to Claude."""
+    """Exactly the sanitized text that will be sent to the AI model."""
     try:
         return cv_builder.preview()
     except cv_builder.BuildBlocked as exc:
@@ -222,7 +222,7 @@ def cv_contacts(body: ContactsRequest) -> dict[str, Any] | JSONResponse:
 
 
 class BuildRequest(BaseModel):
-    """The owner's confirmations before a paid Claude call."""
+    """The owner's confirmations before a paid AI call."""
 
     confirm_cost: bool = False
     confirm_contacts: bool = False
@@ -230,7 +230,7 @@ class BuildRequest(BaseModel):
 
 @app.post("/api/cv/build", status_code=202, response_model=None)
 def cv_build(body: BuildRequest) -> dict[str, bool] | JSONResponse:
-    """Build the base CV with one Claude call (needs both confirmations)."""
+    """Build the base CV with one AI call (needs both confirmations)."""
     try:
         cv_builder.start_build(body.confirm_cost, body.confirm_contacts)
     except cv_builder.BuildBlocked as exc:
@@ -321,7 +321,7 @@ _AGENT_ROLES = {
     "forge": "Orchestrator: runs the pipeline on your click",
     "scout": "Finds, de-duplicates, and scores jobs",
     "job-reader": "Reads a job post and extracts its details",
-    "cv-adapter": "Builds and tailors your CV (the only agent that uses Claude)",
+    "cv-adapter": "Builds and tailors your CV (the only agent that uses an AI model, Groq)",
 }
 LIVE_WINDOW_SECONDS = 15 * 60
 
@@ -401,7 +401,7 @@ def job_detail(key: Annotated[str, Query(min_length=1, max_length=64)]) -> dict[
 
 @app.get("/api/settings")
 def get_settings() -> dict[str, Any]:
-    """The effective profile, sources, boards file, Claude settings, and read-only system status."""
+    """The effective profile, sources, boards file, AI model settings, and read-only system status."""
     return settings.effective_settings()
 
 

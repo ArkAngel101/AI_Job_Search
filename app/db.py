@@ -485,7 +485,7 @@ def save_jd(conn: sqlite3.Connection, key: str, jd: dict[str, Any], score: int, 
 def record_llm_usage(
     conn: sqlite3.Connection, job_key: str | None, model: str, input_tokens: int, output_tokens: int, cost_usd: float
 ) -> None:
-    """Log one Claude call's token usage and estimated cost."""
+    """Log one AI call's token usage and estimated cost."""
     conn.execute(
         "INSERT INTO llm_usage (ts, job_key, model, input_tokens, output_tokens, est_cost_usd) VALUES (?, ?, ?, ?, ?, ?)",
         (now_iso(), job_key, model, input_tokens, output_tokens, cost_usd),
@@ -493,7 +493,7 @@ def record_llm_usage(
 
 
 def month_spend(conn: sqlite3.Connection) -> float:
-    """Estimated Claude spend so far this calendar month (UTC)."""
+    """Estimated AI spend so far this calendar month (UTC)."""
     start = datetime.now(UTC).strftime("%Y-%m-01")
     row = conn.execute("SELECT COALESCE(SUM(est_cost_usd), 0) AS total FROM llm_usage WHERE ts >= ?", (start,)).fetchone()
     return float(row["total"])

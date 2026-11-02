@@ -11,7 +11,7 @@ These rules apply to every request. The build plan is in `BUILD_SPEC.md`. Do one
 - The container has exactly one bind mount: `./data` to `/data`. Never mount the home directory, `~/.ssh`, browser profiles, mail or calendar data, or the project root.
 - The code never reads files outside `/data` and the app's own install directory.
 - No email, Telegram, SMTP, or messaging code. No scheduler, cron, or systemd timers. Every scan or action starts from a button click.
-- No telemetry and no outbound calls except: the job-source APIs in the spec, the Anthropic API, and user-pasted job URLs (see "Pasted URL fetching" below).
+- No telemetry and no outbound calls except: the job-source APIs in the spec, the LLM provider's API (Groq, `api.groq.com`), and user-pasted job URLs (see "Pasted URL fetching" below).
 
 **Local web security**
 - Allowlist the `Host` header: only `127.0.0.1:8000` and `localhost:8000`. Anything else returns 400.
@@ -26,12 +26,12 @@ These rules apply to every request. The build plan is in `BUILD_SPEC.md`. Do one
 - Timeout and response-size cap on every fetch.
 
 **Secrets**
-- Secrets come from environment variables only: `ANTHROPIC_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and optionally `RAPIDAPI_KEY`.
+- Secrets come from environment variables only: `GROQ_API_KEY`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, and optionally `RAPIDAPI_KEY`.
 - Never write a secret to a log, a database, a file, an API response, a test fixture, or the terminal.
 - `.env` is in `.gitignore`. Provide `.env.example` with empty values.
 
 **LLM use**
-- Only CV Adapter calls an LLM (the Anthropic API). Scout, Job Reader, and Forge are deterministic Python.
+- Only CV Adapter calls an LLM (Groq's API; the provider was switched from Anthropic at the owner's request on 2026-11-02). Scout, Job Reader, and Forge are deterministic Python.
 - Do not add other LLM calls, web-search tools, or "discover with AI" features.
 - Show an estimated cost before any Claude call, process one job per click, and cache results. Enforce a monthly spend cap set in Settings.
 

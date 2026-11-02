@@ -7,8 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import anthropic
-import httpx2
+import httpx
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
@@ -62,7 +61,7 @@ def good_structured(**overrides: Any) -> CVStructured:
 
 
 class FakeClient:
-    """Stands in for anthropic.Anthropic: records calls, returns a canned parse result."""
+    """Stands in for the Groq client: records calls, returns a canned parse result."""
 
     def __init__(self, result: CVStructured | Exception | None = None, stop_reason: str = "end_turn") -> None:
         self.result = result if result is not None else good_structured()
@@ -86,16 +85,15 @@ class FakeClient:
         return SimpleNamespace(input_tokens=1234)
 
 
-def api_error(cls: type, status: int = 401, message: str = "") -> Exception:
-    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
-    response = httpx2.Response(status, request=request, json={"error": {"message": message}})
-    return cls(message or "boom", response=response, body=response.json())
+def provider_error(status: int, kind: str | None = None, request_id: str | None = None) -> Exception:
+    return llm.ProviderError(status, kind, request_id)
 
 
 @pytest.fixture()
 def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[FakeClient]:
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", SECRET_KEY)
+    monkeypatch.setenv("GROQ_API_KEY", SECRET_KEY)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
     monkeypatch.delenv("CLAUDE_MODEL", raising=False)
     db.init_db()
     fake = FakeClient()
@@ -358,9 +356,9 @@ def test_text_is_not_sent_if_a_contact_detail_was_missed(env: FakeClient) -> Non
 def test_the_api_key_never_reaches_logs_data_or_responses(env: FakeClient, caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level("DEBUG")
     upload()
-    env.result = api_error(anthropic.AuthenticationError, 401, f"invalid x-api-key {SECRET_KEY}")
+    env.result = provider_error(401)
     build()
-    assert cv_builder.get_status()["error"] == "Anthropic rejected the API key."
+    assert cv_builder.get_status()["error"] == "Groq rejected the API key (check GROQ_API_KEY in .env)."
     env.result = good_structured()
     build()
     texts = [caplog.text, json.dumps(cv_builder.get_status())]
@@ -400,14 +398,19 @@ def test_one_call_with_the_configured_model_and_a_low_cost_setup(env: FakeClient
     upload()
     build()
     (call,) = env.parse_calls
-    assert call["model"] == "claude-sonnet-5-5" and call["output_format"] is CVStructured
-    assert call["output_config"] == {"effort": "medium"} and call["max_tokens"] == 16000
+    assert call["model"] == "openai/gpt-oss-120b" and call["output_format"] is CVStructured
+    assert call["max_tokens"] == 16000 and "output_config" not in call
     assert not {"temperature", "top_p", "top_k", "tools", "tool_choice"} & set(call)
 
-    monkeypatch.setenv("CLAUDE_MODEL", "claude-haiku-5-5")
+    monkeypatch.setenv("GROQ_MODEL", "openai/gpt-oss-20b")
     upload()
     build()
-    assert env.parse_calls[1]["model"] == "claude-haiku-5-5"
+    assert env.parse_calls[1]["model"] == "openai/gpt-oss-20b"
+    monkeypatch.setenv("GROQ_MODEL", "claude-sonnet-5-5")  # a leftover Claude name is ignored
+    assert llm.model_name() == "openai/gpt-oss-120b"
+    monkeypatch.delenv("GROQ_MODEL")
+    monkeypatch.setenv("CLAUDE_MODEL", "qwen/qwen3.8-27b")  # the older variable name still works for a non-Claude model
+    assert llm.model_name() == "qwen/qwen3.8-27b"
 
 
 def test_usage_and_activity_are_logged_by_code(env: FakeClient) -> None:
@@ -418,9 +421,9 @@ def test_usage_and_activity_are_logged_by_code(env: FakeClient) -> None:
     with db.connect() as conn:
         usage = conn.execute("SELECT model, input_tokens, output_tokens, est_cost_usd, job_key FROM llm_usage").fetchone()
         log = [tuple(r) for r in conn.execute("SELECT agent_name, status, model_used FROM activity_log WHERE agent_name='cv-adapter' ORDER BY created_at")]
-    assert usage["model"] == "claude-sonnet-5-5" and (usage["input_tokens"], usage["output_tokens"]) == (1500, 900)
+    assert usage["model"] == "openai/gpt-oss-120b" and (usage["input_tokens"], usage["output_tokens"]) == (1500, 900)
     assert usage["est_cost_usd"] == pytest.approx((1500 * 3.0 + 900 * 15.0) / 1_000_000) and usage["job_key"] is None
-    assert ("cv-adapter", "completed", "claude-sonnet-5-5") in log
+    assert ("cv-adapter", "completed", "openai/gpt-oss-120b") in log
 
 
 def test_failed_validation_keeps_the_previous_base_cv(env: FakeClient) -> None:
@@ -442,12 +445,13 @@ def test_failed_validation_keeps_the_previous_base_cv(env: FakeClient) -> None:
 
 
 @pytest.mark.parametrize(("error", "message"), [
-    (api_error(anthropic.AuthenticationError, 401, "bad"), "Anthropic rejected the API key."),
-    (api_error(anthropic.RateLimitError, 429), "Anthropic is rate limiting requests. Try again in a minute."),
-    (api_error(anthropic.InternalServerError, 500), "The Anthropic API returned an error (500)."),
-    (api_error(anthropic.BadRequestError, 400, "echoed CV text"), "The Anthropic API returned an error (400)."),
-    (anthropic.APIConnectionError(request=httpx2.Request("POST", "https://api.anthropic.com")),
-     "Could not reach the Anthropic API."),
+    (provider_error(401), "Groq rejected the API key (check GROQ_API_KEY in .env)."),
+    (provider_error(403), "Groq rejected the API key (check GROQ_API_KEY in .env)."),
+    (provider_error(429), "Groq is rate limiting requests. Try again in a minute."),
+    (provider_error(500), "The Groq API returned an error (500). Details are not shown because they can quote your CV."),
+    (provider_error(400, "invalid_request_error", "req_abc"),
+     "The Groq API returned an error (400, invalid_request_error, request req_abc). Details are not shown because they can quote your CV."),
+    (provider_error(0, "connection"), "Could not reach the Groq API."),
 ])
 def test_api_errors_become_safe_messages(env: FakeClient, error: Exception, message: str) -> None:
     upload()
@@ -469,14 +473,14 @@ def test_refusal_and_truncation_are_reported(env: FakeClient, stop_reason: str, 
 
 def test_missing_api_key_is_reported(env: FakeClient, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm, "get_client", REAL_GET_CLIENT)  # undo the fake for this test
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    with pytest.raises(llm.NotConfigured, match="ANTHROPIC_API_KEY"):
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    with pytest.raises(llm.NotConfigured, match="GROQ_API_KEY"):
         llm.get_client()
     upload()
     build()
-    assert "ANTHROPIC_API_KEY is not set" in cv_builder.get_status()["error"]
-    monkeypatch.setenv("ANTHROPIC_API_KEY", SECRET_KEY)
-    assert llm.get_client().api_key == SECRET_KEY
+    assert "GROQ_API_KEY is not set" in cv_builder.get_status()["error"]
+    monkeypatch.setenv("GROQ_API_KEY", SECRET_KEY)
+    assert isinstance(llm.get_client(), llm.GroqClient)
 
 
 def test_confirmations_and_preconditions_are_enforced(env: FakeClient) -> None:
@@ -552,22 +556,20 @@ def test_a_suggestion_failure_never_breaks_the_build(env: FakeClient, monkeypatc
 
 # --- cost estimate and the monthly cap --------------------------------------------------------------------------------------------------
 
-def test_estimate_uses_counted_tokens_and_settings_prices(env: FakeClient) -> None:
+def approx_tokens() -> int:
+    return int((len(cv_builder.load_prompt()) + len(cv_builder.preview()["message"])) / 3.5) + 1
+
+
+def test_estimate_is_approximate_uses_settings_prices_and_never_calls_the_model(env: FakeClient) -> None:
     upload()
     shown = cv_builder.estimate()
-    assert shown["basis"] == "counted" and shown["input_tokens"] == 1234 and shown["cost_usd"] is None
-    assert shown["model"] == "claude-sonnet-5-5" and env.count_calls[0]["system"] == cv_builder.load_prompt()
+    assert shown["basis"] == "approximate" and shown["input_tokens"] == approx_tokens() and shown["cost_usd"] is None
+    assert shown["model"] == "openai/gpt-oss-120b" and shown["cost_disabled"] is False
     with db.connect() as conn:
-        db.set_setting(conn, "claude_prices", {"input_per_mtok": 3.0, "output_per_mtok": 15.0})
+        db.set_setting(conn, "claude_prices", {"input_per_mtok": 0.15, "output_per_mtok": 0.6})
     priced = cv_builder.estimate()
-    assert priced["cost_usd"] == pytest.approx((1234 * 3.0 + priced["output_tokens_estimate"] * 15.0) / 1e6)
-
-
-def test_estimate_falls_back_to_an_approximation(env: FakeClient) -> None:
-    upload()
-    env.count_error = api_error(anthropic.InternalServerError, 500)
-    shown = cv_builder.estimate()
-    assert shown["basis"] == "approximate" and shown["input_tokens"] > 100
+    assert priced["cost_usd"] == pytest.approx((approx_tokens() * 0.15 + priced["output_tokens_estimate"] * 0.6) / 1e6)
+    assert env.parse_calls == [] and env.count_calls == []
 
 
 def test_monthly_cap_is_a_hard_stop(env: FakeClient) -> None:
@@ -579,7 +581,7 @@ def test_monthly_cap_is_a_hard_stop(env: FakeClient) -> None:
 
     with db.connect() as conn:
         db.set_setting(conn, "claude_prices", {"input_per_mtok": 3.0, "output_per_mtok": 15.0})
-        db.record_llm_usage(conn, None, "claude-sonnet-5-5", 1, 1, 0.999)  # almost at the cap already
+        db.record_llm_usage(conn, None, "openai/gpt-oss-120b", 1, 1, 0.999)  # almost at the cap already
     build()
     assert "Monthly cap of $1.00 would be exceeded" in cv_builder.get_status()["error"] and env.parse_calls == []
 
@@ -616,7 +618,7 @@ def test_cv_endpoints_end_to_end(client: TestClient, env: FakeClient) -> None:
     preview = client.get("/api/cv/preview").json()
     assert "[NAME]" in preview["text"] and "Jane" not in preview["text"] and preview["possible_leftovers"] == []
     estimate = client.get("/api/cv/estimate").json()
-    assert estimate["input_tokens"] == 1234 and estimate["basis"] == "counted"
+    assert estimate["input_tokens"] > 100 and estimate["basis"] == "approximate"
 
     fixed = client.post("/api/cv/contacts", json={"add": [{"kind": "address", "value": "Boston, MA"}]}, headers=HEADERS)
     assert fixed.status_code == 200 and any(i["value"] == "Boston, MA" for i in fixed.json()["pending"]["items"])
@@ -653,11 +655,10 @@ def test_upload_streaming_cap_applies_without_a_content_length(client: TestClien
 
 # --- structure of the code --------------------------------------------------------------------------------------------------------------------------------------
 
-def test_only_llm_py_talks_to_anthropic() -> None:
+def test_only_llm_py_talks_to_the_model_provider() -> None:
     offenders = []
     for path in (config.APP_ROOT / "app").rglob("*.py"):
-        text = path.read_text()
-        if re.search(r"^\s*(import anthropic|from anthropic)", text, re.MULTILINE) and path.name != "llm.py":
+        if "api.groq.com" in path.read_text() and path.name != "llm.py":
             offenders.append(str(path.relative_to(config.APP_ROOT)))
     assert offenders == []
 
@@ -668,26 +669,3 @@ def test_base_cv_schema_rules() -> None:
     with pytest.raises(ValueError, match="no experience"):
         BaseCV(name="Jane")
     assert BaseCV(name="Jane", skills=[{"category": "x", "items": ["y"]}]).contact.emails == []
-
-
-# --- API error wording --------------------------------------------------------------------------------------------
-
-def test_a_zero_credit_balance_is_explained_in_plain_words(env: FakeClient) -> None:
-    upload()
-    env.result = api_error(anthropic.BadRequestError, 400, "Your credit balance is too low to access the Anthropic API.")
-    build()
-    error = cv_builder.get_status()["error"]
-    assert "credit balance is too low" in error and "billed separately from a Claude.ai seat" in error and "Console" in error
-    assert cv_builder.get_status()["pending"] is not None  # the upload is kept for a retry
-
-
-def test_other_400s_show_only_safe_facts_never_the_message(env: FakeClient) -> None:
-    upload()
-    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
-    body = {"type": "error", "error": {"type": "invalid_request_error", "message": "messages.0.content: Jane Q. Doe jane.doe@example.com"}}
-    response = httpx2.Response(400, request=request, json=body, headers={"request-id": "req_abc123"})
-    env.result = anthropic.BadRequestError("boom", response=response, body=body)
-    build()
-    error = cv_builder.get_status()["error"]
-    assert error == "The Anthropic API returned an error (400, invalid_request_error, request req_abc123)."
-    assert "Jane" not in error and "jane.doe" not in error

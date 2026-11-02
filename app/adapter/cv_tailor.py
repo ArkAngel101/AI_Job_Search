@@ -1,7 +1,7 @@
 """CV Adapter, part 2: tailor the base CV to one chosen job (one paid click per job).
 
 Promote flow: read the job (free, cached) -> reuse an existing tailored CV (costs nothing) -> otherwise show
-the estimated cost and require confirmation -> one Claude call that may rewrite only the headline, the summary,
+the estimated cost and require confirmation -> one AI call that may rewrite only the headline, the summary,
 and each position's bullets -> code merges those onto the base CV and validates the result against the base
 CV text (one retry with the violations listed) -> save, export to .docx and .pdf, mark the job tailored.
 """

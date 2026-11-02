@@ -331,12 +331,12 @@ def test_unknown_key_raises(env: Web) -> None:
 
 
 def test_no_llm_is_called(env: Web, monkeypatch: pytest.MonkeyPatch) -> None:
-    import anthropic
+    from app.adapter import llm
 
     def forbidden(*args: object, **kwargs: object) -> None:
-        raise AssertionError("an Anthropic client was created by Job Reader")
+        raise AssertionError("an LLM client was created by Job Reader")
 
-    monkeypatch.setattr(anthropic, "Anthropic", forbidden)
+    monkeypatch.setattr(llm, "GroqClient", forbidden)
     reader.read_job(store("greenhouse", fx("jd_sample.txt")))
     add_job(text="Machine Learning Engineer\n" + "We are hiring. " * 10)
     with db.connect() as conn:

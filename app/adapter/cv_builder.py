@@ -1,7 +1,7 @@
-"""CV Adapter, part 1: upload a CV, sanitize it, and build the structured base CV with one Claude call.
+"""CV Adapter, part 1: upload a CV, sanitize it, and build the structured base CV with one AI call.
 
 Flow: upload (free: extract text, detect contact details) -> owner reviews detected details, previews the
-exact text that will be sent, and sees the estimated cost -> owner confirms -> one Claude call -> code
+exact text that will be sent, and sees the estimated cost -> owner confirms -> one AI call -> code
 validates and re-attaches the real name and contact details -> the base CV is replaced atomically, and
 only if the new one is valid. A failed build leaves the previous base CV untouched.
 """
@@ -152,7 +152,7 @@ def update_contacts(
 # --- what will be sent ------------------------------------------------------------------------
 
 def build_user_message(sanitized: str) -> str:
-    """The exact user message sent to Claude (the preview shows this same string)."""
+    """The exact user message sent to the model (the preview shows this same string)."""
     return f"<cv>\n{sanitized}\n</cv>"
 
 
@@ -211,7 +211,7 @@ def get_status() -> dict[str, Any]:
 # --- build --------------------------------------------------------------------------------------
 
 def start_build(confirm_cost: bool, confirm_contacts: bool, background: bool = True) -> None:
-    """Start the one Claude call that builds the base CV. Raises BuildBlocked if it cannot start."""
+    """Start the one AI call that builds the base CV. Raises BuildBlocked if it cannot start."""
     if not (confirm_cost and confirm_contacts):
         raise BuildBlocked("Confirm the estimated cost and the detected contact details before building", 400)
     pending = _pending()
@@ -291,7 +291,7 @@ def _build() -> None:
 
 
 def _reattach(structured: CVStructured, items: list[Item]) -> BaseCV:
-    """Put the real name and contact details back (done in code; Claude never saw them)."""
+    """Put the real name and contact details back (done in code; the model never saw them)."""
 
     def fix(value: Any) -> Any:
         if isinstance(value, str):

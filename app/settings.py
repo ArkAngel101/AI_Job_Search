@@ -74,8 +74,8 @@ def effective_settings() -> dict[str, Any]:
         "sources": _source_info(profile.enabled_sources),
         "boards_yaml": ensure_boards_file().read_text(encoding="utf-8"),
         "claude": {
-            "model": llm.model_name(), "model_from_env": bool(os.environ.get("CLAUDE_MODEL", "").strip()),
-            "key_set": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()), "prices": prices,
+            "model": llm.model_name(), "model_from_env": llm.model_from_env(),
+            "key_set": llm.api_key_set(), "prices": prices,
             "cost_limits_disabled": llm.cost_limits_disabled(),
             "monthly_cap_usd": cap or None, "spent_this_month_usd": round(spent, 4),
         },

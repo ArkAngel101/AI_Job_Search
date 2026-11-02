@@ -246,7 +246,7 @@
       title: "Tailor your CV for this job?",
       body: h("div", { class: "stack" },
         h("div", {}, h("strong", {}, job.title), ` at ${job.company}`),
-        h("div", { class: "muted" }, "Claude rewrites only your headline, summary and bullet wording. Everything is checked by code against your base CV."),
+        h("div", { class: "muted" }, "The AI model rewrites only your headline, summary and bullet wording. Everything is checked by code against your base CV."),
         h("div", { class: "card" },
           h("div", {}, `Model: ${e.model}`),
           h("div", {}, `Input: about ${Forge.number(e.input_tokens)} tokens (${e.basis})`),

@@ -1,5 +1,5 @@
 "use strict";
-/* CV page: upload, review detected contact details, preview what is sent to Claude, confirm, build. */
+/* CV page: upload, review detected contact details, preview what is sent to the AI model, confirm, build. */
 
 (() => {
   const KINDS = ["name", "email", "phone", "address", "linkedin", "github", "url"];
@@ -86,7 +86,7 @@
     const input = h("input", { type: "text", id: "name-input", value: pending.name || "", placeholder: "Your full name as written in the CV", "aria-label": "Your name" });
     return h("div", { class: "field" }, h("label", { for: "name-input" }, "Your name (confirm or correct)"),
       h("div", { class: "row" }, input, h("button", { class: "btn", id: "name-save", onclick: () => { if (input.value.trim()) correct({ name: input.value.trim() }); } }, "Save name")),
-      pending.name ? h("div", { class: "hint" }, `Detected: ${pending.name}. Claude only ever sees [NAME].`) :
+      pending.name ? h("div", { class: "hint" }, `Detected: ${pending.name}. The AI model only ever sees [NAME].`) :
         h("div", { class: "notice warn" }, "No name was detected. Enter it so it can be kept out of what is sent."));
   }
 
@@ -106,7 +106,7 @@
       return pre;
     };
     slot.append(
-      h("div", { class: "muted small", style: { margin: "8px 0" } }, `This is exactly the text sent to Claude (${Forge.number(p.chars)} characters). Highlighted tokens replaced your details.`),
+      h("div", { class: "muted small", style: { margin: "8px 0" } }, `This is exactly the text sent to the AI model (${Forge.number(p.chars)} characters). Highlighted tokens replaced your details.`),
       p.possible_leftovers.length ? h("div", { class: "notice warn", style: { marginBottom: "8px" } }, "These may still be contact details: ", p.possible_leftovers.join(", ")) : null,
       mark(p.text));
   }
@@ -138,7 +138,7 @@
     costOk.addEventListener("change", sync); contactsOk.addEventListener("change", sync);
     return h("div", { class: "card", id: "pending-card" }, h("h2", {}, `Review before sending: ${pending.filename}`),
       h("div", { class: "muted small", style: { marginBottom: "10px" } },
-        "Your name, email, phone, links and street address are replaced with tokens before anything is sent to Claude, and put back by this app afterwards."),
+        "Your name, email, phone, links and street address are replaced with tokens before anything is sent to the AI model (Groq), and put back by this app afterwards."),
       nameBox(pending),
       h("div", { class: "items", id: "contact-items" }, pending.items.length ? pending.items.map(itemRow) : h("div", { class: "empty" }, "No contact details were detected.")),
       addForm(),
@@ -158,7 +158,7 @@
     if (!container) return;
     const s = status;
     const stack = [dropzone()];
-    if (s.building) stack.push(h("div", { class: "card", id: "building" }, h("span", { class: "spinner" }), "Building your base CV with Claude. This usually takes under a minute."));
+    if (s.building) stack.push(h("div", { class: "card", id: "building" }, h("span", { class: "spinner" }), "Building your base CV with the AI model. This usually takes under a minute."));
     if (s.error) stack.push(h("div", { class: "notice bad", id: "cv-error" }, s.error, s.has_base ? " Your previous base CV was kept." : ""));
     if (s.pending && !s.building) stack.push(buildCard(s.pending));
     if (s.base_cv) stack.push(h("div", { class: "card" }, h("h2", {}, "Base CV"), Forge.cvPreview(s.base_cv)));

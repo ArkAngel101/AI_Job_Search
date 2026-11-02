@@ -25,16 +25,16 @@ APP_FILES = sorted((ROOT / "app").rglob("*.py"))
 HEADERS = {"X-Forge-Request": "1"}
 FIXTURES = Path(__file__).parent / "fixtures"
 SECRETS = {
-    "ANTHROPIC_API_KEY": "sk-ant-HARDENING-secret-0001", "ADZUNA_APP_ID": "adzuna-id-HARDENING-0002",
+    "GROQ_API_KEY": "gsk_HARDENING-secret-0001", "ADZUNA_APP_ID": "adzuna-id-HARDENING-0002",
     "ADZUNA_APP_KEY": "adzuna-key-HARDENING-0003", "RAPIDAPI_KEY": "rapid-HARDENING-0004",
 }
 
 # Hosts the app may name: the job-source APIs in BUILD_SPEC.md (the Anthropic API host is the SDK's default).
 ALLOWED_HOSTS = {
     "boards-api.greenhouse.io", "api.lever.co", "api.ashbyhq.com", "apply.workable.com", "api.adzuna.com",
-    "remotive.com", "remoteok.com", "www.themuse.com", "jobicy.com",
+    "remotive.com", "remoteok.com", "www.themuse.com", "jobicy.com", "api.groq.com",
 }
-ALLOWED_ENV = {"ANTHROPIC_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "CLAUDE_MODEL", "FORGE_DATA_DIR", "HOME"}
+ALLOWED_ENV = {"GROQ_API_KEY", "GROQ_MODEL", "CLAUDE_MODEL", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "FORGE_DATA_DIR", "HOME"}
 
 
 def imports(path: Path) -> set[str]:
@@ -83,7 +83,7 @@ def test_only_the_audited_modules_open_network_connections() -> None:
     makers = {"app/scout/http.py", "app/reader/safe_fetch.py", "app/adapter/llm.py"}
     for path in APP_FILES:
         text = path.read_text()
-        if re.search(r"httpx\.(Client|AsyncClient)\(|anthropic\.Anthropic\(", text):
+        if re.search(r"httpx\.(Client|AsyncClient)\(", text):
             assert rel(path) in makers, f"{rel(path)} creates its own HTTP client"
 
 
@@ -114,7 +114,7 @@ def test_claude_is_only_ever_called_from_llm_py() -> None:
         text = path.read_text()
         if rel(path) == "app/adapter/llm.py":
             continue
-        assert "anthropic" not in imports(path), rel(path)
+        assert "api.groq.com" not in text and "anthropic" not in imports(path), rel(path)
         assert not re.search(r"\.messages\.(create|parse|stream|count_tokens)\(", text), rel(path)
     callers = {rel(p) for p in APP_FILES if "llm.structured_call(" in p.read_text() or "llm.estimate(" in p.read_text()}
     assert callers <= {"app/adapter/cv_builder.py", "app/adapter/cv_tailor.py"}, callers
@@ -142,14 +142,14 @@ def test_containerfile_runs_as_a_non_root_user_and_copies_only_the_app() -> None
     sources = {token for line in re.findall(r"^COPY (.+)$", text, re.MULTILINE) for token in line.split()[:-1]}
     assert sources <= {"requirements.txt", "app", "prompts", "boards.yaml", "skills.yaml"}, sources  # never .env, data, tests, or .git
     assert "uvicorn" in text and "--host\", \"0.0.0.0\"" in text  # listens on all container interfaces, published to loopback only
-    assert ".env" not in text and "ANTHROPIC" not in text
+    assert ".env" not in text and "GROQ" not in text
 
 
 def test_secrets_are_ignored_by_git_and_not_tracked() -> None:
     ignore = (ROOT / ".gitignore").read_text().splitlines()
     assert ".env" in ignore and "data/" in ignore and "!.env.example" in ignore
     example = (ROOT / ".env.example").read_text()
-    for name in ("ANTHROPIC_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "RAPIDAPI_KEY"):
+    for name in ("GROQ_API_KEY", "ADZUNA_APP_ID", "ADZUNA_APP_KEY", "RAPIDAPI_KEY"):
         assert re.search(rf"^{name}=$", example, re.MULTILINE), name  # present and empty
     try:
         tracked = subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=False).stdout.split()

@@ -16,7 +16,7 @@ from app.scout.http import ScoutClient
 FIXTURES = Path(__file__).parent / "fixtures"
 HEADERS = {"X-Forge-Request": "1"}
 SECRETS = {
-    "ANTHROPIC_API_KEY": "sk-ant-SECRETVALUE-aaaa1111", "ADZUNA_APP_ID": "adzunaid-SECRET-2222",
+    "GROQ_API_KEY": "gsk_SECRETVALUE-aaaa1111", "ADZUNA_APP_ID": "adzunaid-SECRET-2222",
     "ADZUNA_APP_KEY": "adzunakey-SECRET-3333", "RAPIDAPI_KEY": "rapid-SECRET-4444",
 }
 
@@ -30,6 +30,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[TestClie
     monkeypatch.setattr(config, "DATA_DIR", tmp_path / "data")
     for name in SECRETS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
     monkeypatch.delenv("CLAUDE_MODEL", raising=False)
     monkeypatch.setitem(forge._state, "active", False)
     with TestClient(app, base_url="http://127.0.0.1:8000") as test_client:
@@ -58,7 +59,7 @@ def test_defaults(client: TestClient) -> None:
     assert data["customized"] == [] and data["defaults"] == data["profile"]
     assert data["profile"]["seniority"] == "entry" and (data["profile"]["first_cut"], data["profile"]["final"]) == (50, 65)
     assert [s["name"] for s in data["sources"]] == list(Profile().enabled_sources) and all(s["enabled"] for s in data["sources"])
-    assert data["claude"] == {"model": "claude-sonnet-5-5", "model_from_env": False, "key_set": False, "prices": None,
+    assert data["claude"] == {"model": "openai/gpt-oss-120b", "model_from_env": False, "key_set": False, "prices": None,
                               "cost_limits_disabled": False, "monthly_cap_usd": None, "spent_this_month_usd": 0.0}
     assert "greenhouse:" in data["boards_yaml"] and data["system"]["scheduler"].startswith("none")
 
@@ -66,7 +67,7 @@ def test_defaults(client: TestClient) -> None:
 def test_no_secret_ever_appears_in_a_settings_response(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     for name, value in SECRETS.items():
         monkeypatch.setenv(name, value)
-    monkeypatch.setenv("CLAUDE_MODEL", "claude-haiku-5-5")
+    monkeypatch.setenv("GROQ_MODEL", "openai/gpt-oss-20b")
     responses = [client.get("/api/settings").text, post(client, {"profile": {"pages": 3}}).text,
                  post(client, {"profile": {"pages": 99999999}}).text, post(client, {"nonsense": 1}).text,
                  post(client, {"claude": {"prices": {"input_per_mtok": 1, "output_per_mtok": 2}}}).text]
@@ -74,7 +75,7 @@ def test_no_secret_ever_appears_in_a_settings_response(client: TestClient, monke
         for value in SECRETS.values():
             assert value not in text, (value, text[:80])
     data = get(client)
-    assert data["claude"]["key_set"] is True and data["claude"]["model"] == "claude-haiku-5-5" and data["claude"]["model_from_env"] is True
+    assert data["claude"]["key_set"] is True and data["claude"]["model"] == "openai/gpt-oss-20b" and data["claude"]["model_from_env"] is True
     adzuna = next(s for s in data["sources"] if s["name"] == "adzuna")
     assert adzuna["needs_key"] and adzuna["key_set"] is True and adzuna["key_names"] == ["ADZUNA_APP_ID", "ADZUNA_APP_KEY"]
     with db.connect() as conn:  # nothing secret was written to the database either
