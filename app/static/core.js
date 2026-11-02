@@ -59,7 +59,10 @@ Forge.detail = (result) => {
   return result.status ? `Request failed (${result.status})` : "Could not reach the app.";
 };
 
-Forge.money = (usd) => (usd === null || usd === undefined ? "unknown (set token prices in Settings)" : `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`);
+Forge.money = (usd, disabled) => {
+  if (disabled) return "not tracked (cost limits are off in Settings)";
+  return usd === null || usd === undefined ? "unknown (set token prices in Settings)" : `$${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(2)}`;
+};
 Forge.number = (n) => (n === null || n === undefined ? "–" : Number(n).toLocaleString());
 Forge.time = (iso) => {
   const d = new Date(iso);

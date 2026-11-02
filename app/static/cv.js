@@ -120,7 +120,7 @@
     const e = result.data;
     slot.append(h("div", { class: "notice", id: "estimate-box" },
       h("div", {}, `Model: ${e.model}`), h("div", {}, `Input about ${Forge.number(e.input_tokens)} tokens (${e.basis}); output about ${Forge.number(e.output_tokens_estimate)} tokens`),
-      h("div", {}, h("strong", {}, `Estimated cost: ${Forge.money(e.cost_usd)}`)),
+      h("div", {}, h("strong", {}, `Estimated cost: ${Forge.money(e.cost_usd, e.cost_disabled)}`)),
       h("div", { class: "faint small" }, `Spent this month: $${Number(e.spent_this_month_usd).toFixed(2)}${e.monthly_cap_usd ? ` of $${e.monthly_cap_usd}` : ""}`)));
   }
 

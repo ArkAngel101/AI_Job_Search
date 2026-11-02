@@ -59,7 +59,7 @@ def test_defaults(client: TestClient) -> None:
     assert data["profile"]["seniority"] == "entry" and (data["profile"]["first_cut"], data["profile"]["final"]) == (50, 65)
     assert [s["name"] for s in data["sources"]] == list(Profile().enabled_sources) and all(s["enabled"] for s in data["sources"])
     assert data["claude"] == {"model": "claude-sonnet-5-5", "model_from_env": False, "key_set": False, "prices": None,
-                              "monthly_cap_usd": None, "spent_this_month_usd": 0.0}
+                              "cost_limits_disabled": False, "monthly_cap_usd": None, "spent_this_month_usd": 0.0}
     assert "greenhouse:" in data["boards_yaml"] and data["system"]["scheduler"].startswith("none")
 
 
@@ -313,3 +313,43 @@ def test_system_section_counts(client: TestClient) -> None:
     system = get(client)["system"]
     assert system["activity_entries"] == 1 and system["jobs"] == 0 and system["database_bytes"] > 0
     assert system["data_dir"] == str(config.DATA_DIR) and load_profile() == Profile()
+
+
+# --- switching cost limits off -------------------------------------------------------------------------------------
+
+def test_cost_limits_can_be_switched_off_and_the_values_are_kept(client: TestClient) -> None:
+    post(client, {"claude": {"prices": {"input_per_mtok": 2, "output_per_mtok": 10}, "monthly_cap_usd": 5}})
+    assert get(client)["claude"]["cost_limits_disabled"] is False
+    data = post(client, {"claude": {"cost_limits_disabled": True}}).json()
+    assert data["claude"]["cost_limits_disabled"] is True
+    assert data["claude"]["prices"] == {"input_per_mtok": 2.0, "output_per_mtok": 10.0} and data["claude"]["monthly_cap_usd"] == 5.0
+    data = post(client, {"claude": {"cost_limits_disabled": False}}).json()
+    assert data["claude"]["cost_limits_disabled"] is False and data["claude"]["monthly_cap_usd"] == 5.0
+    for bad in ("yes", 1, None):
+        assert post(client, {"claude": {"cost_limits_disabled": bad}}).status_code == 400
+
+
+def test_disabled_cost_limits_switch_off_the_cap_and_the_dollar_estimate(client: TestClient) -> None:
+    from app.adapter import llm
+
+    with db.connect() as conn:
+        db.set_setting(conn, "claude_prices", {"input_per_mtok": 3.0, "output_per_mtok": 15.0})
+        db.set_setting(conn, "monthly_cap_usd", 0.01)
+        db.record_llm_usage(conn, None, "m", 1, 1, 0.0099)
+    with pytest.raises(llm.BudgetExceeded):
+        llm.check_budget(1.0)
+    post(client, {"claude": {"cost_limits_disabled": True}})
+    llm.check_budget(1000.0)  # no longer a hard stop
+    assert llm.cost_limits_disabled() is True
+    shown = llm.estimate("system", "user", 100)
+    assert shown["cost_disabled"] is True and shown["cost_usd"] is None and shown["input_tokens"] > 0
+    post(client, {"claude": {"cost_limits_disabled": False}})
+    with pytest.raises(llm.BudgetExceeded):
+        llm.check_budget(1.0)  # switching it back on restores the cap
+
+
+def test_a_cap_without_prices_does_not_block_when_limits_are_off(client: TestClient) -> None:
+    from app.adapter import llm
+
+    post(client, {"claude": {"monthly_cap_usd": 5, "cost_limits_disabled": True}})
+    llm.check_budget(None)

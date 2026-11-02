@@ -89,7 +89,7 @@ class FakeClient:
 def api_error(cls: type, status: int = 401, message: str = "") -> Exception:
     request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
     response = httpx2.Response(status, request=request, json={"error": {"message": message}})
-    return cls(message or "boom", response=response, body=None)
+    return cls(message or "boom", response=response, body=response.json())
 
 
 @pytest.fixture()
@@ -668,3 +668,26 @@ def test_base_cv_schema_rules() -> None:
     with pytest.raises(ValueError, match="no experience"):
         BaseCV(name="Jane")
     assert BaseCV(name="Jane", skills=[{"category": "x", "items": ["y"]}]).contact.emails == []
+
+
+# --- API error wording --------------------------------------------------------------------------------------------
+
+def test_a_zero_credit_balance_is_explained_in_plain_words(env: FakeClient) -> None:
+    upload()
+    env.result = api_error(anthropic.BadRequestError, 400, "Your credit balance is too low to access the Anthropic API.")
+    build()
+    error = cv_builder.get_status()["error"]
+    assert "credit balance is too low" in error and "billed separately from a Claude.ai seat" in error and "Console" in error
+    assert cv_builder.get_status()["pending"] is not None  # the upload is kept for a retry
+
+
+def test_other_400s_show_only_safe_facts_never_the_message(env: FakeClient) -> None:
+    upload()
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    body = {"type": "error", "error": {"type": "invalid_request_error", "message": "messages.0.content: Jane Q. Doe jane.doe@example.com"}}
+    response = httpx2.Response(400, request=request, json=body, headers={"request-id": "req_abc123"})
+    env.result = anthropic.BadRequestError("boom", response=response, body=body)
+    build()
+    error = cv_builder.get_status()["error"]
+    assert error == "The Anthropic API returned an error (400, invalid_request_error, request req_abc123)."
+    assert "Jane" not in error and "jane.doe" not in error

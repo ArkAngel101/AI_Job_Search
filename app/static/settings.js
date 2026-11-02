@@ -20,6 +20,7 @@
       prices_in: settings.claude.prices ? String(settings.claude.prices.input_per_mtok) : "",
       prices_out: settings.claude.prices ? String(settings.claude.prices.output_per_mtok) : "",
       cap: settings.claude.monthly_cap_usd ? String(settings.claude.monthly_cap_usd) : "",
+      cost_disabled: !!settings.claude.cost_limits_disabled,
     };
   }
 
@@ -35,6 +36,7 @@
         : { input_per_mtok: Number(draft.prices_in), output_per_mtok: Number(draft.prices_out) };
     }
     if (draft.cap !== before.cap) claude.monthly_cap_usd = draft.cap === "" ? null : Number(draft.cap);
+    if (draft.cost_disabled !== before.cost_disabled) claude.cost_limits_disabled = draft.cost_disabled;
     const body = {};
     if (Object.keys(profile).length) body.profile = profile;
     if (Object.keys(claude).length) body.claude = claude;
@@ -46,6 +48,7 @@
     if (!p.enabled_sources.length) return "Turn on at least one source.";
     if (!p.titles.length) return "Add at least one target title.";
     if (!p.keywords.length) return "Add at least one search keyword.";
+    if (draft.cost_disabled) return null;  // prices and the cap are switched off, so they are not checked
     const priceIn = draft.prices_in.trim(), priceOut = draft.prices_out.trim();
     if ((priceIn === "") !== (priceOut === "")) return "Enter both token prices, or clear both.";
     for (const v of [priceIn, priceOut, draft.cap.trim()]) if (v !== "" && !(Number(v) >= 0)) return "Prices and the cap must be numbers (0 or more).";
@@ -232,10 +235,14 @@
   function claudeCard() {
     const c = saved.claude;
     const bind = (key, id, label, placeholder) => h("input", { type: "number", id, min: "0", step: "any", value: draft[key], placeholder, "aria-label": label,
+      disabled: draft.cost_disabled,
       oninput: (e) => { draft[key] = e.target.value; refreshBar(); } });
     return h("div", { class: "card" }, h("h2", {}, "Claude"),
       field("Model", c.model_from_env ? "Set by CLAUDE_MODEL in .env." : "The default. Set CLAUDE_MODEL in .env to change it.", h("code", { id: "claude-model" }, c.model)),
       field("API key", "Set ANTHROPIC_API_KEY in .env. It is never shown here.", h("span", { class: `pill ${c.key_set ? "good" : "warn"}`, id: "claude-key" }, c.key_set ? "key set" : "key not set")),
+      field("Cost limits", "Tick this if you have no per-token cost limit (for example a plan without one). Cost estimates and the spend cap are switched off; the values below are kept and come back when you untick it.",
+        h("label", { class: "check" }, h("input", { type: "checkbox", id: "cost-disabled", checked: draft.cost_disabled,
+          onchange: (e) => { draft.cost_disabled = e.target.checked; render(); } }), "Not applicable: disable cost tracking and the cap")),
       h("div", { class: "row", style: { alignItems: "flex-start", gap: "16px" } },
         field("Input price ($ per million tokens)", null, bind("prices_in", "price-in", "Input price", "e.g. 2.00")),
         field("Output price ($ per million tokens)", null, bind("prices_out", "price-out", "Output price", "e.g. 10.00"))),

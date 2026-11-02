@@ -56,6 +56,12 @@ def get_prices() -> tuple[float, float] | None:
         return None
 
 
+def cost_limits_disabled() -> bool:
+    """True if the owner switched cost tracking and the spend cap off in Settings (the values are kept)."""
+    with db.connect() as conn:
+        return bool(db.get_setting(conn, "cost_limits_disabled", False))
+
+
 def cost_usd(input_tokens: int, output_tokens: int) -> float | None:
     """Dollar cost for the given tokens at the Settings prices, or None without prices."""
     prices = get_prices()
@@ -75,12 +81,15 @@ def estimate(system: str, user: str, expected_output_tokens: int) -> dict[str, A
         basis = "approximate"
     return {
         "model": model_name(), "input_tokens": input_tokens, "output_tokens_estimate": expected_output_tokens,
-        "cost_usd": cost_usd(input_tokens, expected_output_tokens), "basis": basis,
+        "cost_usd": None if cost_limits_disabled() else cost_usd(input_tokens, expected_output_tokens), "basis": basis,
+        "cost_disabled": cost_limits_disabled(),
     }
 
 
 def check_budget(estimated_cost: float | None) -> None:
     """Hard stop: refuse a call that would push this month's spend past the cap set in Settings."""
+    if cost_limits_disabled():
+        return
     with db.connect() as conn:
         cap = db.get_setting(conn, "monthly_cap_usd")
         spent = db.month_spend(conn)
@@ -116,7 +125,7 @@ def structured_call(
     except anthropic.APIConnectionError:
         raise _failed(purpose, model, "Could not reach the Anthropic API.") from None
     except anthropic.APIStatusError as exc:
-        raise _failed(purpose, model, f"The Anthropic API returned an error ({exc.status_code}).") from None
+        raise _failed(purpose, model, describe_api_error(exc)) from None
     except ValidationError:
         raise _failed(purpose, model, "The model's answer did not match the expected format.") from None
 
@@ -134,6 +143,18 @@ def structured_call(
         raise _failed(purpose, model, "The model's answer could not be read.")
     db.log_activity("cv-adapter", f"{purpose}: {in_tokens} in, {out_tokens} out tokens", "completed", model)
     return parsed
+
+
+def describe_api_error(exc: anthropic.APIStatusError) -> str:
+    """A safe explanation of an API error. Only known billing problems are explained in words; for anything
+    else just the status, error type, and request id are shown, because error text can quote the request."""
+    body = exc.body if isinstance(exc.body, dict) else {}
+    error = body.get("error") if isinstance(body.get("error"), dict) else {}
+    if "credit balance" in str(error.get("message", "")).lower():
+        return ("Your Anthropic API credit balance is too low. API usage is billed separately from a Claude.ai "
+                "seat: add credits in the Anthropic Console (Plans & Billing), then try again.")
+    extra = ", ".join(str(x) for x in (error.get("type"), f"request {exc.request_id}" if getattr(exc, "request_id", None) else None) if x)
+    return f"The Anthropic API returned an error ({exc.status_code}{', ' + extra if extra else ''})."
 
 
 def _failed(purpose: str, model: str, message: str) -> LLMError:

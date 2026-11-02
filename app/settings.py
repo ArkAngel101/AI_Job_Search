@@ -76,6 +76,7 @@ def effective_settings() -> dict[str, Any]:
         "claude": {
             "model": llm.model_name(), "model_from_env": bool(os.environ.get("CLAUDE_MODEL", "").strip()),
             "key_set": bool(os.environ.get("ANTHROPIC_API_KEY", "").strip()), "prices": prices,
+            "cost_limits_disabled": llm.cost_limits_disabled(),
             "monthly_cap_usd": cap or None, "spent_this_month_usd": round(spent, 4),
         },
         "system": {
@@ -160,8 +161,13 @@ def apply_update(body: dict[str, Any]) -> None:
         raise SettingsError("reset must list setting names")
 
     claude = body.get("claude", {})
-    if not isinstance(claude, dict) or set(claude) - {"prices", "monthly_cap_usd"}:
-        raise SettingsError("claude accepts only prices and monthly_cap_usd")
+    if not isinstance(claude, dict) or set(claude) - {"prices", "monthly_cap_usd", "cost_limits_disabled"}:
+        raise SettingsError("claude accepts only prices, monthly_cap_usd, and cost_limits_disabled")
+    disabled: Any = "keep"
+    if "cost_limits_disabled" in claude:
+        if not isinstance(claude["cost_limits_disabled"], bool):
+            raise SettingsError("cost_limits_disabled must be true or false")
+        disabled = claude["cost_limits_disabled"]
     prices: Any = "keep"
     if "prices" in claude:
         raw = claude["prices"]
@@ -195,6 +201,8 @@ def apply_update(body: dict[str, Any]) -> None:
             db.delete_setting(conn, "profile")
         if prices != "keep":
             (db.delete_setting(conn, "claude_prices") if prices is None else db.set_setting(conn, "claude_prices", prices))
+        if disabled != "keep":
+            (db.set_setting(conn, "cost_limits_disabled", True) if disabled else db.delete_setting(conn, "cost_limits_disabled"))
         if cap != "keep":
             (db.delete_setting(conn, "monthly_cap_usd") if not cap else db.set_setting(conn, "monthly_cap_usd", cap))
 
