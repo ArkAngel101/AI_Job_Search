@@ -93,8 +93,9 @@
   /* --- preview, estimate, confirm, build -------------------------------------------------------------- */
 
   async function togglePreview() {
-    previewShown = !previewShown;
     const slot = $("#preview-slot");
+    if (!slot) { previewShown = false; return; }  // the page is rebuilding: the preview area is not on screen
+    previewShown = !previewShown;
     Forge.clear(slot);
     if (!previewShown) return;
     const result = await Forge.api("/api/cv/preview");
