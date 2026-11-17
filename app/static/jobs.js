@@ -2,12 +2,14 @@
 /* Jobs: scan, paste a URL or text, the ranked table, and per-job actions. */
 
 (() => {
-  const USER_STATUSES = ["new", "interested", "applied", "interview", "rejected"];
+  const USER_STATUSES = ["new", "interested", "later", "applied", "interview", "rejected", "expired", "not_applicable"];
+  const STATUS_LABEL = { later: "maybe later", expired: "job expired", not_applicable: "not applicable" };
+  const statusLabel = (s) => STATUS_LABEL[s] || s;
   const SOURCE_LABEL = {
     greenhouse: "Greenhouse", lever: "Lever", ashby: "Ashby", workable: "Workable", adzuna: "Adzuna",
     remotive: "Remotive", remoteok: "RemoteOK", themuse: "The Muse", jobicy: "Jobicy",
   };
-  const filters = { newOnly: false, hideClosed: false, q: "" };
+  const filters = { newOnly: false, hideClosed: false, q: "", otherStatus: "" };
   let container = null;
   let stopListening = null;
   let flashKey = null;
@@ -112,6 +114,13 @@
         onchange: (e) => { filters.hideClosed = e.target.checked; loadJobs(); } }), "Hide closed"));
   }
 
+  function otherStatusFilter() {
+    return h("label", { class: "check" }, "Show",
+      h("select", { id: "filter-other-status", "aria-label": "Filter other jobs by status", onchange: (e) => { filters.otherStatus = e.target.value; loadJobs(); } },
+        h("option", { value: "", selected: !filters.otherStatus }, "all statuses"),
+        USER_STATUSES.filter((s) => s !== "new").map((s) => h("option", { value: s, selected: s === filters.otherStatus }, statusLabel(s)))));
+  }
+
   function scoreCell(job) {
     const cls = job.score >= 65 ? "good" : job.score >= 50 ? "warn" : "low";
     return h("span", { class: `score ${cls}`, title: "Match score (0-100)" }, Math.round(job.score));
@@ -130,9 +139,10 @@
     return h("select", { "aria-label": `Status for ${job.title}`, onchange: async (e) => {
       const previous = job.user_status;
       const result = await Forge.api("/api/job/status", { method: "POST", json: { key: job.key, user_status: e.target.value } });
-      if (result.ok) job.user_status = e.target.value;
-      else { e.target.value = previous; Forge.toast(Forge.detail(result), "error"); }
-    } }, USER_STATUSES.map((s) => h("option", { value: s, selected: s === job.user_status }, s)));
+      if (!result.ok) { e.target.value = previous; Forge.toast(Forge.detail(result), "error"); return; }
+      job.user_status = e.target.value;
+      if ((previous === "new") !== (job.user_status === "new")) loadJobs();  // the job moves between the two sections
+    } }, USER_STATUSES.map((s) => h("option", { value: s, selected: s === job.user_status }, statusLabel(s))));
   }
 
   function actionsCell(job) {
@@ -148,11 +158,18 @@
       link ? h("a", { class: "btn small", href: link, target: "_blank", rel: "noopener noreferrer", title: "Original posting" }, "↗") : null);
   }
 
+  function typeCell(job) {
+    return job.job_type === "temporary"
+      ? h("span", { class: "pill warn", title: "Internship, co-op or similar" }, "Temporary")
+      : h("span", { class: "faint small", title: "Not an internship or co-op" }, "Permanent");
+  }
+
   function jobRow(job) {
     return h("tr", { class: `${job.closed ? "closed" : ""}${job.key === flashKey ? " flash" : ""}`, dataset: { key: job.key } },
       h("td", { class: "faint" }, job.rank),
       h("td", {}, scoreCell(job)),
       h("td", {}, h("div", { class: "ellipsis", title: job.title, style: { fontWeight: "600" } }, job.title)),
+      h("td", {}, typeCell(job)),
       h("td", {}, h("div", { class: "ellipsis", title: job.company }, job.company)),
       h("td", {}, h("div", { class: "ellipsis muted", title: job.location }, job.location || "–")),
       h("td", {}, h("span", { class: "faint source", title: SOURCE_LABEL[job.source] || job.source }, SOURCE_LABEL[job.source] || job.source)),
@@ -161,11 +178,11 @@
       h("td", {}, actionsCell(job)));
   }
 
-  function table(jobs) {
-    if (!jobs.length) return h("div", { class: "empty", id: "jobs-empty" }, "No jobs yet. Press Scan now, or add a job above.");
-    const cols = [["rank", "#"], ["score", "Score"], ["role", "Role"], ["company", "Company"], ["location", "Location"],
+  function table(jobs, id, emptyText) {
+    if (!jobs.length) return h("div", { class: "empty", id: `${id}-empty` }, emptyText);
+    const cols = [["rank", "#"], ["score", "Score"], ["role", "Role"], ["type", "Type"], ["company", "Company"], ["location", "Location"],
       ["source", "Source"], ["status", "Status"], ["flags", "Flags"], ["actions", "Actions"]];
-    return h("div", { class: "table-wrap" }, h("table", { class: "jobs", id: "jobs-table" },
+    return h("div", { class: "table-wrap" }, h("table", { class: "jobs", id },
       h("thead", {}, h("tr", {}, cols.map(([c, label]) => h("th", { class: `col-${c}` }, label)))),
       h("tbody", {}, jobs.map(jobRow))));
   }
@@ -179,16 +196,30 @@
   }
 
   async function loadJobs() {
-    const params = new URLSearchParams({ limit: "500" });
-    if (filters.newOnly) params.set("new_only", "true");
-    if (filters.hideClosed) params.set("hide_closed", "true");
-    if (filters.q.trim()) params.set("q", filters.q.trim());
-    const result = await Forge.api(`/api/jobs?${params}`);
-    const slot = container && $("#jobs-slot");
-    if (!slot) return;
-    Forge.clear(slot);
-    if (!result.ok) { slot.append(h("div", { class: "notice bad" }, Forge.detail(result))); return; }
-    slot.append(table(result.data), legend());
+    const base = () => {
+      const params = new URLSearchParams({ limit: "500" });
+      if (filters.hideClosed) params.set("hide_closed", "true");
+      if (filters.q.trim()) params.set("q", filters.q.trim());
+      return params;
+    };
+    const fresh = base();
+    fresh.set("user_status", "new");
+    if (filters.newOnly) fresh.set("new_only", "true");
+    const other = base();
+    if (filters.otherStatus) other.set("user_status", filters.otherStatus);
+    else other.set("exclude_new", "true");
+    const [newResult, otherResult] = await Promise.all([Forge.api(`/api/jobs?${fresh}`), Forge.api(`/api/jobs?${other}`)]);
+    const newSlot = container && $("#jobs-slot");
+    const otherSlot = container && $("#other-slot");
+    if (!newSlot || !otherSlot) return;
+    const fill = (slot, result, id, emptyText, extra) => {
+      Forge.clear(slot);
+      if (!result.ok) { slot.append(h("div", { class: "notice bad" }, Forge.detail(result))); return; }
+      slot.append(table(result.data, id, emptyText), extra || []);
+    };
+    fill(newSlot, newResult, "jobs-table", "No new jobs. Press Scan now, or add a job above.", legend());
+    fill(otherSlot, otherResult, "other-table", filters.otherStatus
+      ? `No jobs marked "${statusLabel(filters.otherStatus)}".` : "Nothing here yet. Jobs you mark interested, maybe later, applied, interview, rejected, expired or not applicable appear here.");
     flashKey = null;
   }
 
@@ -300,7 +331,10 @@
     mount(el) {
       container = el;
       el.append(h("div", { class: "stack" }, h("div", { id: "scan-slot" }), pasteCard(),
-        h("div", { class: "card" }, h("h2", {}, "Ranked jobs"), filterBar(), h("div", { id: "jobs-slot" }, h("div", { class: "empty" }, h("span", { class: "spinner" }), "Loading")))));
+        h("div", { class: "card" }, h("h2", {}, "New jobs"), filterBar(), h("div", { id: "jobs-slot" }, h("div", { class: "empty" }, h("span", { class: "spinner" }), "Loading"))),
+        h("div", { class: "card" }, h("div", { class: "row", style: { justifyContent: "space-between", marginBottom: "12px" } },
+          h("h2", { style: { marginBottom: "0" } }, "Other jobs"), otherStatusFilter()),
+          h("div", { id: "other-slot" }, h("div", { class: "empty" }, h("span", { class: "spinner" }), "Loading")))));
       wasActive = Forge.runStatus.active;
       renderScan();
       loadJobs();

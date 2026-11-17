@@ -209,8 +209,23 @@ def test_every_page_works_end_to_end(live: dict[str, Any], browser: Any) -> None
     select.select_option("interested")
     page.wait_for_timeout(300)
     page.reload()
-    page.wait_for_selector("#jobs-table tbody tr")
-    assert page.query_selector(f"tr[data-key='{first_key}'] select").input_value() == "interested"
+    page.wait_for_selector("#other-table tbody tr")
+    # a job with a status other than "new" moves to the "Other jobs" section, and can be filtered by status
+    assert page.query_selector(f"#jobs-table tr[data-key='{first_key}']") is None
+    assert page.query_selector(f"#other-table tr[data-key='{first_key}'] select").input_value() == "interested"
+    page.select_option("#filter-other-status", "applied")
+    page.wait_for_selector("#other-table-empty")
+    page.select_option("#filter-other-status", "interested")
+    page.wait_for_selector("#other-table tbody tr")
+    page.select_option("#filter-other-status", "")
+    page.wait_for_timeout(400)  # let the table reload before touching its rows
+    # "maybe later" is a status too; moving a job back to new returns it to the first section
+    page.select_option(f"#other-table tr[data-key='{first_key}'] select", "later")
+    page.wait_for_timeout(300)
+    assert page.query_selector(f"#other-table tr[data-key='{first_key}'] select").input_value() == "later"
+    page.select_option(f"#other-table tr[data-key='{first_key}'] select", "new")
+    page.wait_for_selector(f"#jobs-table tr[data-key='{first_key}']")
+    assert page.query_selector("#other-table") is None
 
     # search and "new only" filters
     page.fill("#filter-q", "scientist")

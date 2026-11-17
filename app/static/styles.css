@@ -149,8 +149,8 @@ table.jobs th { text-align: left; font-size: 11px; letter-spacing: 0.08em; text-
 table.jobs td { padding: 9px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; overflow: hidden; }
 table.jobs tr.closed td { opacity: 0.55; }
 table.jobs tr.flash td { animation: flash 1.8s ease-out; }
-.col-rank { width: 4%; } .col-score { width: 7%; } .col-role { width: 25%; } .col-company { width: 12%; }
-.col-location { width: 11%; } .col-source { width: 9%; } .col-status { width: 11%; } .col-flags { width: 9%; } .col-actions { width: 12%; }
+.col-rank { width: 4%; } .col-score { width: 7%; } .col-role { width: 20%; } .col-type { width: 8%; } .col-company { width: 11%; }
+.col-location { width: 10%; } .col-source { width: 8%; } .col-status { width: 11%; } .col-flags { width: 9%; } .col-actions { width: 12%; }
 table.jobs td .source { font-size: 11px; }
 .score { display: inline-block; min-width: 38px; text-align: center; padding: 2px 8px; border-radius: 999px; font-weight: 800; font-size: 13px; border: 1px solid var(--line); }
 .score.good { color: var(--green); border-color: rgba(61, 220, 151, 0.5); background: rgba(61, 220, 151, 0.08); }

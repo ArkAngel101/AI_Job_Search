@@ -123,11 +123,17 @@ def test_attributions_endpoint(client: TestClient) -> None:
 
 def test_set_job_status(client: TestClient) -> None:
     key = store()
-    for status in ("interested", "applied", "interview", "rejected", "new"):
+    for status in ("interested", "later", "applied", "interview", "rejected", "expired", "not_applicable", "new"):
         resp = client.post("/api/job/status", json={"key": key, "user_status": status}, headers=HEADERS)
         assert resp.status_code == 200 and resp.json() == {"key": key, "user_status": status}
         assert client.get("/api/jobs").json()[0]["user_status"] == status
     assert client.post("/api/job/status", json={"key": key, "user_status": "hired"}, headers=HEADERS).status_code == 422
+    # "Other jobs" = everything except new
+    assert len(client.get("/api/jobs", params={"exclude_new": "true"}).json()) == 0
+    client.post("/api/job/status", json={"key": key, "user_status": "later"}, headers=HEADERS)
+    assert len(client.get("/api/jobs", params={"exclude_new": "true"}).json()) == 1
+    assert len(client.get("/api/jobs", params={"user_status": "new"}).json()) == 0
+    client.post("/api/job/status", json={"key": key, "user_status": "new"}, headers=HEADERS)
     assert client.post("/api/job/status", json={"key": "nope", "user_status": "new"}, headers=HEADERS).status_code == 404
     assert client.post("/api/job/status", json={"key": key, "user_status": "new"}).status_code == 403
 

@@ -158,3 +158,21 @@ def test_activity_ids_are_unique_and_ordered_by_time(data_dir: Path) -> None:
     with db.connect() as conn:
         newest_first = [r["id"] for r in conn.execute("SELECT id FROM activity_log ORDER BY created_at DESC")]
     assert newest_first == ids[::-1]
+
+
+def test_old_user_status_check_is_widened_on_init(data_dir: Path) -> None:
+    """A database built before the 'later' status existed is rebuilt in place, keeping its rows."""
+    with db.connect() as conn:
+        current = conn.execute("SELECT sql FROM sqlite_master WHERE name = 'jobs'").fetchone()["sql"]
+        conn.execute("DROP TRIGGER jobs_status_forward_only")
+        conn.execute("DROP TABLE jobs")
+        conn.execute(current.replace("'later', ", ""))
+        conn.execute("INSERT INTO jobs (key, title, user_status) VALUES ('k', 't', 'applied')")
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute("UPDATE jobs SET user_status = 'later'")
+    db.init_db()
+    with db.connect() as conn:
+        assert db.set_user_status(conn, "k", "later")
+        assert conn.execute("SELECT user_status FROM jobs").fetchone()["user_status"] == "later"
+        assert conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'jobs_status_forward_only'").fetchone()
+        assert not conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'jobs_old'").fetchone()

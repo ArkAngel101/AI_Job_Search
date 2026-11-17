@@ -83,7 +83,8 @@ def jobs(
     new_only: bool = False,
     hide_closed: bool = False,
     status: Literal["seen", "matched", "read", "tailored"] | None = None,
-    user_status: Literal["new", "interested", "applied", "interview", "rejected"] | None = None,
+    user_status: Literal["new", "interested", "later", "applied", "interview", "rejected", "expired", "not_applicable"] | None = None,
+    exclude_new: bool = False,
     source: Annotated[str | None, Query(max_length=40)] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     limit: Annotated[int, Query(ge=1, le=1000)] = 200,
@@ -93,7 +94,7 @@ def jobs(
     with db.connect() as conn:
         return db.list_jobs(
             conn, min_score=min_score, new_only=new_only, hide_closed=hide_closed, status=status,
-            user_status=user_status, source=source, q=q, limit=limit, offset=offset,
+            user_status=user_status, exclude_new=exclude_new, source=source, q=q, limit=limit, offset=offset,
         )
 
 
@@ -376,7 +377,7 @@ class JobStatusRequest(BaseModel):
     """Body of POST /api/job/status."""
 
     key: str = Field(min_length=1, max_length=64)
-    user_status: Literal["new", "interested", "applied", "interview", "rejected"]
+    user_status: Literal["new", "interested", "later", "applied", "interview", "rejected", "expired", "not_applicable"]
 
 
 @app.post("/api/job/status", response_model=None)

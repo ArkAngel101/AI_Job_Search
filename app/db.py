@@ -11,11 +11,12 @@ from typing import Any
 from app import config
 from app.scout.dedup import MergedListing, canonical_url, is_better, job_key
 from app.scout.dedup import aliases as listing_aliases
+from app.scout.job_type import job_type
 from app.scout.models import RawListing
 
 # Job status only moves forward through this order.
 JOB_STATUSES = ("seen", "matched", "read", "tailored")
-USER_STATUSES = ("new", "interested", "applied", "interview", "rejected")
+USER_STATUSES = ("new", "interested", "later", "applied", "interview", "rejected", "expired", "not_applicable")
 AGENTS = ("forge", "scout", "job-reader", "cv-adapter")
 ACTIVITY_STATUSES = ("completed", "failed")
 MAX_DESCRIPTION_LEN = 139  # activity descriptions stay under 140 characters
@@ -168,7 +169,23 @@ def _migrate(conn: sqlite3.Connection) -> None:
     job_columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
     if "board" not in job_columns:  # added in Phase 3
         conn.execute("ALTER TABLE jobs ADD COLUMN board TEXT")
+    _widen_user_status(conn)
     conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_board ON jobs (board)")
+
+
+def _widen_user_status(conn: sqlite3.Connection) -> None:
+    """Rebuild `jobs` if its user_status CHECK predates the current USER_STATUSES (SQLite cannot alter a CHECK)."""
+    sql = conn.execute("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'jobs'").fetchone()["sql"]
+    if all(f"'{status}'" in sql for status in USER_STATUSES):
+        return
+    conn.execute("DROP TRIGGER IF EXISTS jobs_status_forward_only")
+    conn.execute("DROP INDEX IF EXISTS idx_jobs_board")
+    conn.execute("ALTER TABLE jobs RENAME TO jobs_old")
+    conn.executescript(SCHEMA)  # creates the new jobs table and its trigger
+    old_columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs_old)")}
+    columns = ", ".join(row["name"] for row in conn.execute("PRAGMA table_info(jobs)") if row["name"] in old_columns)
+    conn.execute(f"INSERT INTO jobs ({columns}) SELECT {columns} FROM jobs_old")
+    conn.execute("DROP TABLE jobs_old")
 
 
 def advance_status(conn: sqlite3.Connection, key: str, new_status: str) -> str | None:
@@ -389,7 +406,7 @@ def _summary(row: sqlite3.Row, rank: int | None, latest_run_id: int | None) -> d
         "location": row["location"], "url": safe_url(row["url"]), "source": row["source"],
         "new": row["first_run"] is not None and row["first_run"] == latest_run_id,
         "times_seen": row["times_seen"], "closed": bool(row["closed"]), "status": row["status"],
-        "user_status": row["user_status"], "key": row["key"], "needs_sponsorship": bool(row["needs_sponsorship"]),
+        "user_status": row["user_status"], "job_type": job_type(row["title"]), "key": row["key"], "needs_sponsorship": bool(row["needs_sponsorship"]),
     }
 
 
@@ -401,6 +418,7 @@ def list_jobs(
     hide_closed: bool = False,
     status: str | None = None,
     user_status: str | None = None,
+    exclude_new: bool = False,
     source: str | None = None,
     q: str | None = None,
     limit: int = 200,
@@ -423,6 +441,8 @@ def list_jobs(
     if user_status:
         where.append("user_status = ?")
         args.append(user_status)
+    if exclude_new:
+        where.append("user_status != 'new'")
     if source:
         where.append("source = ?")
         args.append(source)
@@ -594,7 +614,7 @@ def list_activity(conn: sqlite3.Connection, limit: int = 50) -> list[dict[str, A
 
 
 def set_user_status(conn: sqlite3.Connection, key: str, user_status: str) -> bool:
-    """Save the owner's own status for a job (new, interested, applied, interview, rejected)."""
+    """Save the owner's own status for a job (new, interested, later, applied, interview, rejected, expired, not_applicable)."""
     if user_status not in USER_STATUSES:
         raise ValueError(f"Unknown status: {user_status!r}")
     return conn.execute("UPDATE jobs SET user_status = ? WHERE key = ?", (user_status, key)).rowcount > 0

@@ -203,7 +203,7 @@ AI_Job_Search/            (project root)
 
 - `jobs(key PRIMARY KEY, title, company, location, url, canonical_url, source, source_id, description, score, score_breakdown_json, status, user_status, times_seen, first_run, last_run, closed, jd_json, cv_path)`
   - `status` only moves forward: `seen`, `matched`, `read`, `tailored`. It never downgrades.
-  - `user_status`: `new | interested | applied | interview | rejected`.
+  - `user_status`: `new | interested | later | applied | interview | rejected | expired | not_applicable` (`later` = "maybe later", `expired` = "job expired", `not_applicable` = "not applicable"; added after Phase 11 at the owner's request).
 - `runs(id, trigger, status, started_at, ended_at, summary_json)`
 - `activity_log(id TEXT PRIMARY KEY, agent_name, task_description, status, model_used, created_at)`
   - agent names: `forge`, `scout`, `job-reader`, `cv-adapter`. Status: `completed | failed`. Model is `none` for non-LLM agents. Indexes on agent_name, status, created_at DESC.
@@ -297,7 +297,7 @@ Add a CLI or test helper that prints the top 10 of a scored fixture set with bre
 - Endpoints:
   - `POST /api/run` starts a find.
   - `GET /api/run-status` returns the current or last run, with per-source progress.
-  - `GET /api/jobs` returns ranked rows `{rank, score, title, company, location, url, source, new, times_seen, closed, status, user_status, key}` with filters.
+  - `GET /api/jobs` returns ranked rows `{rank, score, title, company, location, url, source, new, times_seen, closed, status, user_status, key}` with filters (including `user_status=<value>` and `exclude_new=true`).
   - `GET /api/overview` returns counts: found, matched, read, tailored, known total, new in last run.
 
 **Done when**
@@ -389,7 +389,7 @@ Pure DOM, no framework, no build step. Poll the API every few seconds while a ru
 
 **Pages**
 - **Overview:** counts (found, matched, read, tailored, known total), a four-stage funnel, four agent cards (name, role, status LIVE/WORKING/IDLE, task count, success rate, last action, model; glow while working, driven by backend state), and a scrolling activity stream (agent pill, task text, model, completed/failed, time).
-- **Jobs:** "Scan now" button with a scanning state and per-source progress. A "paste URL or text" box. Table: rank, score pill (green at 65+, gold at 50-64), role, company, location, source, status dropdown (persisted), flags (NEW, xN seen, CLOSED, sponsorship warning, CV done), actions (Tailor with cost confirmation, JD drawer, CV view, DOC, PDF, original posting link). A legend under the table. A filter for new only and hide closed.
+- **Jobs:** "Scan now" button with a scanning state and per-source progress. A "paste URL or text" box. The ranked list is split into two stacked sections: **New jobs** (`user_status = new`) and **Other jobs** (every other status, with a status filter; changing a job's status moves it between the sections). Each section is a table: rank, score pill (green at 65+, gold at 50-64), role, type (Temporary for internship, co-op, apprentice, trainee, temporary or seasonal titles, else Permanent; decided from the title only, `app/scout/job_type.py`), company, location, source, status dropdown (persisted), flags (NEW, xN seen, CLOSED, sponsorship warning, CV done), actions (Tailor with cost confirmation, JD drawer, CV view, DOC, PDF, original posting link). A legend under the table. A filter for new only and hide closed.
 - **CV:** drop zone, building state, base CV preview, the detected contact items (editable, with the detected name for confirmation), and a "Preview sanitized text" view showing exactly what will be sent to Claude.
 - **Settings:** see Phase 10.
 
